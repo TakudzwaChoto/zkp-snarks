@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Cryptographic Log Audit</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f6f8fa; }
+        table { width: 100%; border-collapse: collapse; margin: 24px 0; }
+        th, td { border: 1px solid #ccc; padding: 8px; font-size: 0.95em; }
+        th { background: #eee; }
+        .hash, .sig { font-family: monospace; font-size: 0.9em; word-break: break-all; }
+    </style>
+</head>
+<body>
+    <h1>Cryptographic Log Audit</h1>
+    <button onclick="exportTableToCSV('llm_logs_export.csv')">Export as CSV</button>
+    <table id="log-table">
+        <tr>
+            <th>ID</th><th>Timestamp</th><th>User</th>
+            <th>Prompt (enc)</th><th>Response (enc)</th>
+            <th>Prev Hash</th><th>Curr Hash</th><th>Signature</th>
+        </tr>
+        {% for log in logs %}
+        <tr>
+            <td>{{ log[0] }}</td>
+            <td>{{ log[1] }}</td>
+            <td>{{ log[2] }}</td>
+            <td class="hash" title="{{ log[3] }}"><span onclick="copyToClipboard('{{ log[3] }}')">{{ log[3][:32] }}...<span style='color:#888;'>(copy)</span></span></td>
+            <td class="hash" title="{{ log[4] }}"><span onclick="copyToClipboard('{{ log[4] }}')">{{ log[4][:32] }}...<span style='color:#888;'>(copy)</span></span></td>
+            <td class="hash" title="{{ log[5] }}"><span onclick="copyToClipboard('{{ log[5] }}')">{{ log[5][:16] }}...<span style='color:#888;'>(copy)</span></span></td>
+            <td class="hash" title="{{ log[6] }}"><span onclick="copyToClipboard('{{ log[6] }}')">{{ log[6][:16] }}...<span style='color:#888;'>(copy)</span></span></td>
+            <td class="sig" title="{{ log[7] }}"><span onclick="copyToClipboard('{{ log[7] }}')">{{ log[7][:16] }}...<span style='color:#888;'>(copy)</span></span></td>
+        </tr>
+        {% endfor %}
+    </table>
+    <script>
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text);
+        alert('Copied to clipboard!');
+    }
+    function exportTableToCSV(filename) {
+        var csv = [];
+        var rows = document.querySelectorAll("#log-table tr");
+        for (var i = 0; i < rows.length; i++) {
+            var row = [], cols = rows[i].querySelectorAll("td, th");
+            for (var j = 0; j < cols.length; j++)
+                row.push('"' + cols[j].innerText.replace(/"/g, '""') + '"');
+            csv.push(row.join(","));
+        }
+        var csvFile = new Blob([csv.join("\n")], {type: "text/csv"});
+        var downloadLink = document.createElement("a");
+        downloadLink.download = filename;
+        downloadLink.href = window.URL.createObjectURL(csvFile);
+        downloadLink.style.display = "none";
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+    }
+    </script>
+    <p><a href="/">Back to Chat</a></p>
+</body>
+</html> 

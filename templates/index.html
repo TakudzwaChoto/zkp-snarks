@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LLM Secure Logger</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #f6f8fa;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 600px;
+            margin: 40px auto 0 auto;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+            padding: 0 0 16px 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 70vh;
+        }
+        h1 {
+            text-align: center;
+            color: #222;
+            margin: 24px 0 0 0;
+        }
+        .chat-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px 24px 0 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .bubble {
+            max-width: 80%;
+            padding: 12px 18px;
+            border-radius: 18px;
+            font-size: 1rem;
+            line-height: 1.5;
+            word-break: break-word;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        }
+        .user {
+            align-self: flex-end;
+            background: #0078fe;
+            color: #fff;
+            border-bottom-right-radius: 4px;
+        }
+        .assistant {
+            align-self: flex-start;
+            background: #e9ecef;
+            color: #222;
+            border-bottom-left-radius: 4px;
+        }
+        .input-area {
+            display: flex;
+            gap: 8px;
+            padding: 16px 24px 0 24px;
+            background: #fff;
+            border-top: 1px solid #eee;
+        }
+        textarea {
+            flex: 1;
+            resize: none;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 10px;
+            font-size: 1rem;
+            min-height: 44px;
+            max-height: 120px;
+            outline: none;
+        }
+        button {
+            background: #0078fe;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 0 24px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #005ecb;
+        }
+        .logid-toast {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            background: #222;
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+            z-index: 1000;
+            font-size: 1rem;
+            animation: fadein 0.5s, fadeout 0.5s 2.5s;
+        }
+        @keyframes fadein {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes fadeout {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+        .userbar {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            padding: 12px 24px 0 24px;
+            font-size: 1rem;
+            color: #555;
+        }
+        .userbar a {
+            margin-left: 16px;
+            color: #0078fe;
+            text-decoration: none;
+        }
+        .userbar a:hover {
+            text-decoration: underline;
+        }
+        .audit-card {
+            background: #fffbe6;
+            border: 1.5px solid #ffe066;
+            border-radius: 12px;
+            margin: 18px 24px 0 24px;
+            padding: 18px 20px 12px 20px;
+            box-shadow: 0 2px 8px rgba(255,224,102,0.08);
+            font-size: 1rem;
+            color: #7c6f00;
+            max-width: 600px;
+        }
+        .audit-card .audit-title {
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #b59f00;
+        }
+        .audit-card .audit-status {
+            display: inline-block;
+            font-size: 0.95em;
+            font-weight: bold;
+            padding: 2px 10px;
+            border-radius: 8px;
+            margin-left: 8px;
+        }
+        .audit-card .allowed {
+            background: #e6ffed;
+            color: #1a7f37;
+            border: 1px solid #b7ebc6;
+        }
+        .audit-card .blocked {
+            background: #fff1f0;
+            color: #d4380d;
+            border: 1px solid #ffa39e;
+        }
+        .audit-card .audit-prompt {
+            margin: 8px 0 4px 0;
+            font-family: monospace;
+            background: #f6f8fa;
+            padding: 6px 10px;
+            border-radius: 6px;
+            color: #333;
+        }
+        .audit-card .audit-explanation {
+            margin-top: 8px;
+            font-size: 0.98em;
+            color: #7c6f00;
+        }
+        .bubble .msg-meta {
+            display: flex;
+            align-items: center;
+            font-size: 0.85em;
+            color: #888;
+            margin-top: 4px;
+        }
+        .bubble .msg-status {
+            margin-left: 8px;
+            font-weight: bold;
+            font-size: 0.85em;
+            border-radius: 6px;
+            padding: 2px 8px;
+        }
+        .msg-status.allowed { background: #e6ffed; color: #1a7f37; border: 1px solid #b7ebc6; }
+        .msg-status.blocked { background: #fff1f0; color: #d4380d; border: 1px solid #ffa39e; }
+        .msg-status.error { background: #fffbe6; color: #b59f00; border: 1px solid #ffe066; }
+        .clear-btn {
+            background: #f5f5f5;
+            color: #0078fe;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 4px 16px;
+            font-size: 0.95em;
+            margin-left: 12px;
+            cursor: pointer;
+        }
+        .clear-btn:hover { background: #e9ecef; }
+        @media (max-width: 700px) {
+            .container { max-width: 100vw; border-radius: 0; }
+            .chat-area, .input-area { padding-left: 8px; padding-right: 8px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="userbar">
+            {% if user %}
+                Logged in as <b>{{ user }}</b> ({{ role }})
+                <a href="/logout">Logout</a>
+                <form action="/clear_chat" method="post" style="display:inline;"><button class="clear-btn" type="submit">Clear Chat</button></form>
+            {% else %}
+                <a href="/login">Login</a>
+            {% endif %}
+        </div>
+        <h1>Test LLM Logging</h1>
+        <div style="margin: 0 24px 12px 24px; padding: 10px 0; display: flex; align-items: center; gap: 24px; flex-wrap: wrap;">
+            <form action="/set_strict_mode" method="post" style="display:inline;">
+                <label style="font-weight:500;">Strict Mode:
+                    <input type="checkbox" name="strict_mode" onchange="this.form.submit()" {% if strict_mode %}checked{% endif %}>
+                </label>
+            </form>
+            <span style="font-size:0.98em;">Current Model: <b>{{ llm_model }}</b></span>
+            {% if role == 'admin' %}
+            <form action="/set_model" method="post" style="display:inline;">
+                <label for="llm_model">Switch Model:</label>
+                <select name="llm_model" id="llm_model" onchange="this.form.submit()">
+                    {% for model in available_models %}
+                        <option value="{{ model }}" {% if model == llm_model %}selected{% endif %}>{{ model }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+            {% endif %}
+            <span style="font-size:0.98em; color:#888;">Strict mode blocks if either sanitization or self-checker triggers.</span>
+        </div>
+        {% if audit_info %}
+        <div class="audit-card">
+            <div class="audit-title">
+                LLM Self-Checker Audit
+                <span class="audit-status {{ audit_info.status }}">{{ audit_info.status|capitalize }}</span>
+            </div>
+            <div><b>Prompt:</b></div>
+            <div class="audit-prompt">{{ audit_info.prompt }}</div>
+            <div><b>Self-Checker Explanation:</b></div>
+            <div class="audit-explanation">{{ audit_info.explanation }}</div>
+        </div>
+        {% endif %}
+        {% if user %}
+        <div class="chat-area" id="chat-area">
+            {% for msg in chat_history %}
+                <div class="bubble {{ msg.role }}">
+                    {% if msg.role == 'assistant' %}
+                        <div class="msg-content" data-md>{{ msg.content|e }}</div>
+                    {% else %}
+                        <div class="msg-content">{{ msg.content }}</div>
+                    {% endif %}
+                    <div class="msg-meta">
+                        <span>{{ msg.timestamp if msg.timestamp else '' }}</span>
+                        {% if msg.status %}
+                            <span class="msg-status {{ msg.status }}">{{ msg.status|capitalize }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        <form class="input-area" method="POST" autocomplete="off">
+            <textarea name="prompt" placeholder="Enter your prompt..." required></textarea>
+            <button type="submit">Send</button>
+        </form>
+        {% else %}
+        <div style="text-align:center; margin: 32px 0;">Please <a href="/login">log in</a> to use the chat.</div>
+        {% endif %}
+        <p style="text-align:center; margin-top:16px;">
+            <a href="/verify">Verify Logs</a> | 
+            <a href="/logs">View Logs</a> | 
+            <a href="/test_zkp">Test ZKP Security</a>
+        </p>
+    </div>
+    {% with messages = get_flashed_messages() %}
+      {% for message in messages %}
+        {% if "Log ID:" in message or "blocked" in message or "Logged in" in message or "Logged out" in message or "permission" in message or "Please log in" in message or "Invalid username" in message %}
+          <div class="logid-toast">{{ message }}</div>
+        {% endif %}
+      {% endfor %}
+    {% endwith %}
+    <script>
+      // Auto-scroll chat to bottom
+      var chatArea = document.getElementById('chat-area');
+      if (chatArea) {
+        chatArea.scrollTop = chatArea.scrollHeight;
+      }
+      // Render markdown for assistant messages
+      document.querySelectorAll('[data-md]').forEach(function(el) {
+        el.innerHTML = marked.parse(el.textContent);
+      });
+    </script>
+</body>
+</html> 

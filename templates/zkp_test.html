@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZKP Security Test - LLM Security</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        .content {
+            padding: 30px;
+        }
+        .nav-buttons {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        .nav-btn {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .nav-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+        .zkp-info {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-left: 4px solid #667eea;
+        }
+        .zkp-info h3 {
+            margin: 0 0 15px 0;
+            color: #333;
+        }
+        .zkp-info p {
+            margin: 5px 0;
+            color: #666;
+        }
+        .test-results {
+            display: grid;
+            gap: 20px;
+        }
+        .test-card {
+            background: white;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 25px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .test-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.1);
+        }
+        .test-card.safe {
+            border-color: #28a745;
+            background: linear-gradient(135deg, #f8fff9 0%, #e8f5e8 100%);
+        }
+        .test-card.unsafe {
+            border-color: #dc3545;
+            background: linear-gradient(135deg, #fff8f8 0%, #ffe8e8 100%);
+        }
+        .test-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        }
+        .test-card.safe::before {
+            background: linear-gradient(90deg, #28a745 0%, #20c997 100%);
+        }
+        .test-card.unsafe::before {
+            background: linear-gradient(90deg, #dc3545 0%, #fd7e14 100%);
+        }
+        .prompt-text {
+            font-size: 1.1em;
+            color: #333;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+        .description {
+            color: #666;
+            font-style: italic;
+            margin-bottom: 15px;
+        }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .metric {
+            background: rgba(255,255,255,0.8);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .metric-label {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .metric-value {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #333;
+        }
+        .metric-value.safe {
+            color: #28a745;
+        }
+        .metric-value.unsafe {
+            color: #dc3545;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .status-badge.safe {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-badge.unsafe {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .proof-id {
+            font-family: 'Courier New', monospace;
+            background: #f8f9fa;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.9em;
+            color: #495057;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔐 ZKP Security Test</h1>
+            <p>Zero-Knowledge Proof Validation Results</p>
+        </div>
+        
+        <div class="content">
+            <div class="nav-buttons">
+                <a href="/" class="nav-btn">← Back to Chat</a>
+                <a href="/logs" class="nav-btn">View Logs</a>
+                <a href="/verify" class="nav-btn">Verify Integrity</a>
+            </div>
+            
+            <div class="zkp-info">
+                <h3>🔍 ZKP Security Overview</h3>
+                <p><strong>Zero-Knowledge Proofs (ZKPs)</strong> allow proving prompt safety without revealing the actual prompt content.</p>
+                <p><strong>Safety Score:</strong> 0.0 (unsafe) to 1.0 (safe) - based on adversarial pattern detection</p>
+                <p><strong>ZKP Threshold:</strong> 0.7 - prompts below this score are blocked</p>
+                <p><strong>Proof Validation:</strong> Cryptographic verification of safety claims without data exposure</p>
+                <p><strong>Privacy:</strong> Sensitive prompt content is never stored or transmitted in plain text</p>
+            </div>
+            
+            <div class="test-results">
+                {% for result in results %}
+                <div class="test-card {{ 'safe' if result.zkp_valid else 'unsafe' }}">
+                    <div class="prompt-text">"{{ result.prompt }}"</div>
+                    <div class="description">{{ result.description }}</div>
+                    
+                    <div class="metrics">
+                        <div class="metric">
+                            <div class="metric-label">Safety Score</div>
+                            <div class="metric-value {{ 'safe' if result.safety_score >= 0.7 else 'unsafe' }}">
+                                {{ "%.2f"|format(result.safety_score) }}
+                            </div>
+                        </div>
+                        
+                        <div class="metric">
+                            <div class="metric-label">ZKP Validation</div>
+                            <div class="metric-value {{ 'safe' if result.zkp_valid else 'unsafe' }}">
+                                <span class="status-badge {{ 'safe' if result.zkp_valid else 'unsafe' }}">
+                                    {{ 'VALID' if result.zkp_valid else 'INVALID' }}
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <div class="metric">
+                            <div class="metric-label">Proof ID</div>
+                            <div class="proof-id">{{ result.proof_id }}</div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</body>
+</html> 
