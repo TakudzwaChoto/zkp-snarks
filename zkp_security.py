@@ -4,6 +4,8 @@ import json
 import time
 from typing import Dict, List, Optional
 from dataclasses import dataclass
+import os
+import requests
 
 @dataclass
 class ZKProof:
@@ -17,6 +19,11 @@ class ZKProof:
 class ZKPSecurity:
     def __init__(self, master_key: Optional[str] = None):
         self.master_key = master_key or secrets.token_hex(32)
+        # Optional SNARK integration
+        self.snark_enabled: bool = os.getenv("SNARK_ENABLED", "false").lower() == "true"
+        self.snark_prover_url: Optional[str] = os.getenv("SNARK_PROVER_URL")
+        self.snark_verify_url: Optional[str] = os.getenv("SNARK_VERIFY_URL")
+        self.snark_policy_id: str = os.getenv("SNARK_POLICY_ID", "default")
     
     def _hash_data(self, data: str) -> str:
         return hashlib.sha256(data.encode()).hexdigest()
@@ -51,6 +58,43 @@ class ZKPSecurity:
             metadata=response_data
         )
     
+    def generate_snark_policy_proof(self, prompt: str) -> Optional[Dict]:
+        """Optionally call external SNARK prover service for policy compliance.
+        Returns a dict like {"proof": ..., "publicSignals": ..., "valid": bool, "policy_id": str}
+        or None if SNARK is disabled.
+        """
+        if not self.snark_enabled or not self.snark_prover_url:
+            return None
+        try:
+            payload = {
+                "prompt": prompt,
+                "policy_id": self.snark_policy_id,
+            }
+            resp = requests.post(self.snark_prover_url, json=payload, timeout=30)
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            return {"error": str(e), "valid": False, "policy_id": self.snark_policy_id}
+
+    def verify_snark_policy_proof(self, snark_obj: Optional[Dict]) -> bool:
+        """Verify SNARK proof, either via external verifier or by trusting the prover's 'valid' flag.
+        If SNARK is disabled or no object provided, return True (no-op).
+        """
+        if not self.snark_enabled:
+            return True
+        if not snark_obj:
+            return False
+        if self.snark_verify_url:
+            try:
+                resp = requests.post(self.snark_verify_url, json=snark_obj, timeout=10)
+                resp.raise_for_status()
+                data = resp.json()
+                return bool(data.get("valid", False))
+            except Exception:
+                return False
+        # Fallback: trust the prover's 'valid' field
+        return bool(snark_obj.get("valid", False))
+
     def _calculate_safety_score(self, prompt: str, safety_rules: List[str]) -> float:
         score = 1.0
         prompt_lower = prompt.lower()

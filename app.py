@@ -290,6 +290,9 @@ def index():
         safety_rules = ["no_personal_info", "no_harmful_content", "no_prompt_injection"]
         zkp_proof = zkp_security.generate_prompt_safety_proof(prompt, safety_rules)
         zkp_valid = zkp_security.verify_prompt_safety_proof(zkp_proof, safety_rules)
+        # Optional SNARK policy proof
+        snark_obj = zkp_security.generate_snark_policy_proof(prompt)
+        snark_valid = zkp_security.verify_snark_policy_proof(snark_obj)
         
         sanitized_prompt, triggered = sanitize_prompt(prompt)
         user_msg = {
@@ -301,29 +304,30 @@ def index():
         }
         # Strict mode: block if sanitization, self-checker, or ZKP validation fails
         if strict_mode:
-            if triggered or not llm_self_check(prompt) or not zkp_valid:
+            if triggered or not llm_self_check(prompt) or not zkp_valid or not snark_valid:
                 user_msg["status"] = "blocked"
                 session["chat_history"].append(user_msg)
                 session.modified = True
                 audit_info = {
                     'prompt': prompt,
-                    'explanation': f'Strict mode: blocked by sanitization, self-checker, or ZKP validation. ZKP Safety Score: {zkp_proof.metadata.get("safety_score", 0):.2f}',
+                    'explanation': f'Strict mode: blocked by sanitization, self-checker, ZKP or SNARK validation. ZKP Safety Score: {zkp_proof.metadata.get("safety_score", 0):.2f}; SNARK: {"valid" if snark_valid else "invalid"}',
                     'status': 'blocked (strict mode)'
                 }
                 session['audit_info'] = audit_info
-                flash("Prompt blocked: Strict mode (sanitization, self-checker, or ZKP validation).")
+                flash("Prompt blocked: Strict mode (sanitization, self-checker, ZKP or SNARK validation).")
                 return redirect(url_for("index"))
         else:
-            if triggered or not zkp_valid:
+            if triggered or not zkp_valid or not snark_valid:
+                reason = 'Sanitization' if triggered else ('ZKP validation' if not zkp_valid else 'SNARK validation')
                 audit_info = {
                     'prompt': prompt,
-                    'explanation': f'Security layer blocked: {"Sanitization" if triggered else "ZKP validation"} detected suspicious content. ZKP Safety Score: {zkp_proof.metadata.get("safety_score", 0):.2f}',
+                    'explanation': f'Security layer blocked: {reason} detected suspicious content. ZKP Safety Score: {zkp_proof.metadata.get("safety_score", 0):.2f}; SNARK: {"valid" if snark_valid else "invalid"}',
                     'status': 'blocked (security layer)'
                 }
                 session['audit_info'] = audit_info
                 session["chat_history"].append(user_msg)
                 session.modified = True
-                flash(f"Prompt blocked: {'Sanitization layer' if triggered else 'ZKP validation'} detected suspicious or adversarial content.")
+                flash(f"Prompt blocked: {reason} detected suspicious or adversarial content.")
                 return redirect(url_for("index"))
             if not validate_prompt(sanitized_prompt):
                 user_msg["status"] = "blocked"
