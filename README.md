@@ -18,3 +18,25 @@ This project experiments with multi-layer defenses for LLM prompt injection, com
 - Outputs include metrics CSV, detailed results CSV, and plots (tagged by dataset name).
 
 Note: Current ZKP implementation is a simulation suitable for research/development and interface testing; not a production cryptographic proof.
+
+## SNARK (simulated) integration
+- Start both services with Docker Compose:
+```bash
+docker compose up --build
+```
+- The app will call the prover at `http://snark-prover:5001` (see `docker-compose.yml`).
+- Local run without Docker:
+```bash
+# in one terminal
+export SNARK_ENABLED=true
+export SNARK_PROVER_URL=http://127.0.0.1:5001/prove
+export SNARK_VERIFY_URL=http://127.0.0.1:5001/verify
+python zk/snark_prover.py
+
+# in another terminal
+export SNARK_ENABLED=true
+export SNARK_PROVER_URL=http://127.0.0.1:5001/prove
+export SNARK_VERIFY_URL=http://127.0.0.1:5001/verify
+python app.py
+```
+- Note: current prover is simulated; replace with real Circom/PLONK prover later.

@@ -5,7 +5,17 @@ services:
     build: .
     ports:
       - "5000:5000"
-    volumes:
-      - .:/app
     environment:
-      - FLASK_ENV=development 
+      - FLASK_ENV=development
+      - SNARK_ENABLED=true
+      - SNARK_PROVER_URL=http://snark-prover:5001/prove
+      - SNARK_VERIFY_URL=http://snark-prover:5001/verify
+      - SNARK_POLICY_ID=policy_v1
+    depends_on:
+      - snark-prover
+  snark-prover:
+    build:
+      context: ./zk
+      dockerfile: Dockerfile
+    ports:
+      - "5001:5001" 
