@@ -11,6 +11,7 @@ import json
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Tuple, Any
+from typing import Optional
 from dataclasses import dataclass
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score, confusion_matrix, classification_report
 from sklearn.metrics import roc_curve, auc, precision_recall_curve
@@ -19,6 +20,7 @@ import seaborn as sns
 from datetime import datetime
 import requests
 from zkp_security import ZKPSecurity, ZKProof
+import os
 
 @dataclass
 class DetectionResult:
@@ -31,10 +33,11 @@ class DetectionResult:
     metadata: Dict[str, Any]
 
 class AdvancedEvaluationPipeline:
-    def __init__(self):
+    def __init__(self, dataset_path: Optional[str] = None):
         self.zkp_security = ZKPSecurity()
         self.results = []
-        self.test_dataset = self._load_comprehensive_dataset()
+        self.dataset_path = dataset_path
+        self.test_dataset = self._load_comprehensive_dataset() if not dataset_path else self._load_external_dataset(dataset_path)
         
     def _load_comprehensive_dataset(self) -> List[Tuple[str, str]]:
         """Load comprehensive test dataset with various attack patterns"""
@@ -105,6 +108,21 @@ class AdvancedEvaluationPipeline:
             ("Tell me about password security", "safe"),
             ("How do I protect my data?", "safe"),
         ]
+    
+    def _load_external_dataset(self, path: str) -> List[Tuple[str, str]]:
+        """Load dataset from JSON/CSV with columns prompt,label"""
+        import pandas as pd
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Dataset not found: {path}")
+        if path.endswith('.json'):
+            df = pd.read_json(path)
+        elif path.endswith('.csv'):
+            df = pd.read_csv(path)
+        else:
+            raise ValueError("Dataset must be .json or .csv")
+        if not set(['prompt', 'label']).issubset(df.columns):
+            raise ValueError("Dataset must have columns: prompt, label")
+        return [(str(r.prompt), str(r.label)) for r in df.itertuples()]
     
     def zkp_detection(self, prompt: str) -> DetectionResult:
         """Use actual ZKP framework for detection"""
@@ -434,18 +452,16 @@ class AdvancedEvaluationPipeline:
         axes[1, 1].grid(True, alpha=0.3)
         
         plt.tight_layout()
-        plt.savefig('evaluation_results.png', dpi=300, bbox_inches='tight')
-        print("📊 Visualizations saved as 'evaluation_results.png'")
-        
         return fig
     
     def save_detailed_results(self, all_results: Dict[str, List[DetectionResult]], metrics: Dict[str, Dict[str, float]]):
         """Save detailed results to files"""
+        ds_tag = os.path.basename(self.dataset_path) if self.dataset_path else 'built_in'
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         
         # Save metrics summary
         metrics_df = pd.DataFrame(metrics).T
-        metrics_df.to_csv(f'evaluation_metrics_{timestamp}.csv')
+        metrics_df.to_csv(f'evaluation_metrics_{ds_tag}_{timestamp}.csv', index=False)
         
         # Save detailed results
         detailed_results = []
@@ -462,11 +478,11 @@ class AdvancedEvaluationPipeline:
                 })
         
         results_df = pd.DataFrame(detailed_results)
-        results_df.to_csv(f'detailed_results_{timestamp}.csv', index=False)
+        results_df.to_csv(f'detailed_results_{ds_tag}_{timestamp}.csv', index=False)
         
         print(f"📁 Results saved:")
-        print(f"  • Metrics: evaluation_metrics_{timestamp}.csv")
-        print(f"  • Detailed: detailed_results_{timestamp}.csv")
+        print(f"  • Metrics: evaluation_metrics_{ds_tag}_{timestamp}.csv")
+        print(f"  • Detailed: detailed_results_{ds_tag}_{timestamp}.csv")
     
     def run_complete_evaluation(self):
         """Run the complete evaluation pipeline"""
@@ -480,10 +496,16 @@ class AdvancedEvaluationPipeline:
         metrics = self.print_results(all_results)
         
         # Create visualizations
-        self.create_visualizations(all_results, metrics)
+        fig = self.create_visualizations(all_results, metrics)
         
         # Save results
+        ds_tag = os.path.basename(self.dataset_path) if self.dataset_path else 'built_in'
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        metrics_path = f"evaluation_metrics_{ds_tag}_{timestamp}.csv"
+        details_path = f"detailed_results_{ds_tag}_{timestamp}.csv"
         self.save_detailed_results(all_results, metrics)
+        fig.savefig(f"evaluation_results_{ds_tag}_{timestamp}.png", dpi=160, bbox_inches='tight')
+        print(f"Saved metrics: {metrics_path}\nSaved details: {details_path}")
         
         print("\n✅ Evaluation Pipeline Complete!")
         print("=" * 60)
