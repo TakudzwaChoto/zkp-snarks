@@ -101,16 +101,16 @@ sequenceDiagram
 ## Evaluation workflow (datasets → metrics)
 ```mermaid
 flowchart LR
-  DS1[Built‑in small set]
-  DS2[Synthetic generator<br/>data/synthetic_dataset.py]
-  DS3[Custom JSON/CSV]
-  DS1 & DS2 & DS3 --> RUN[run_evaluation.py
-(--dataset optional)]
-  RUN --> CALC[Per‑method metrics
-Precision/Recall/F1/Accuracy]
-  RUN --> VIZ[Plots (PR/ROC‑like, bars)]
-  RUN --> CSV1[evaluation_metrics_* .csv]
-  RUN --> CSV2[detailed_results_* .csv]
+    DS1[Built-in small set]
+    DS2["Synthetic generator\ndata/synthetic_dataset.py"]
+    DS3[Custom JSON/CSV]
+    
+    DS1 & DS2 & DS3 --> RUN["run_evaluation.py\n(--dataset optional)"]
+    
+    RUN --> CALC["Per-method metrics\nPrecision/Recall/F1/Accuracy"]
+    RUN --> VIZ["Plots (PR/ROC-like, bars)"]
+    RUN --> CSV1["evaluation_metrics_*.csv"]
+    RUN --> CSV2["detailed_results_*.csv"]
 ```
 
 ## Deployment workflows
