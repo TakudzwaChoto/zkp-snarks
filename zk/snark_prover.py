@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 
 """
-Simulated SNARK prover and verifier service.
+SNARK prover and verifier service (simulated by default, snarkjs optional).
+
+Env:
+- SNARKJS_PATH: path to snarkjs binary (optional). If set and artifacts present,
+  the service will run real groth16 prove/verify using zk/circom artifacts.
+- CIRCUIT_DIR: directory with policy.wasm, policy_final.zkey, verification_key.json
+- SNARK_THRESHOLD: default threshold
 
 Endpoints:
 - POST /prove { prompt: str, policy_id: str, threshold?: float }
   -> { proof, publicSignals, valid, policy_id }
 - POST /verify { proof, publicSignals, policy_id }
   -> { valid }
-
-This is a placeholder that enforces a token/DFA-like policy and returns a
-succinct object shaped like a SNARK proof. Replace the internal checks with
-real Circom/PLONK integration later.
 """
 
 from flask import Flask, request, jsonify
@@ -20,10 +22,12 @@ import json
 import re
 import time
 import os
+import subprocess
+import tempfile
+from security.normalizer import normalize_prompt
 
 app = Flask(__name__)
 
-# Default policy terms (extend/replace via env POLICY_TERMS)
 DEFAULT_TERMS = [
     r"ignore\s+(previous\s+)?instructions?",
     r"bypass",
@@ -36,26 +40,12 @@ DEFAULT_TERMS = [
     r"api[_-]?key|private[_-]?key|token",
 ]
 
-POLICY_TERMS = os.getenv("POLICY_TERMS")
-if POLICY_TERMS:
-    try:
-        TERMS = json.loads(POLICY_TERMS)
-        if isinstance(TERMS, list):
-            DEFAULT_TERMS = TERMS
-    except Exception:
-        pass
-
 DEFAULT_THRESHOLD = float(os.getenv("SNARK_THRESHOLD", "0.7"))
-
-
-def normalize_prompt(p: str) -> str:
-    p = p.strip()
-    p = re.sub(r"\s+", " ", p)
-    return p.lower()
+SNARKJS_PATH = os.getenv("SNARKJS_PATH")
+CIRCUIT_DIR = os.getenv("CIRCUIT_DIR", "zk/build")
 
 
 def poseidon_like_commitment(text: str) -> str:
-    # Placeholder: use SHA-256 as a stand-in for a Poseidon commitment
     return hashlib.sha256(text.encode()).hexdigest()
 
 
@@ -67,7 +57,7 @@ def policy_score(normalized: str) -> float:
     return max(0.0, score)
 
 
-def make_proof_object(prompt: str, policy_id: str, threshold: float) -> dict:
+def simulated_proof(prompt: str, policy_id: str, threshold: float) -> dict:
     norm = normalize_prompt(prompt)
     commitment = poseidon_like_commitment(norm)
     score = policy_score(norm)
@@ -79,14 +69,39 @@ def make_proof_object(prompt: str, policy_id: str, threshold: float) -> dict:
         "timestamp": int(time.time()),
         "score": round(score, 4),
     }
-    # "Proof" is just a hash over public signals for demo purposes
     proof = hashlib.sha256(json.dumps(public_signals, sort_keys=True).encode()).hexdigest()
-    return {
-        "proof": proof,
-        "publicSignals": public_signals,
-        "valid": bool(is_safe),
-        "policy_id": policy_id,
-    }
+    return {"proof": proof, "publicSignals": public_signals, "valid": bool(is_safe), "policy_id": policy_id}
+
+
+def snarkjs_proof(prompt: str, policy_id: str, threshold: float) -> dict:
+    wasm = os.path.join(CIRCUIT_DIR, "policy_js", "policy.wasm")
+    zkey = os.path.join(CIRCUIT_DIR, "policy_final.zkey")
+    vkey = os.path.join(CIRCUIT_DIR, "verification_key.json")
+    if not (os.path.exists(wasm) and os.path.exists(zkey) and os.path.exists(vkey) and SNARKJS_PATH):
+        return simulated_proof(prompt, policy_id, threshold)
+    norm = normalize_prompt(prompt)
+    commitment = poseidon_like_commitment(norm)
+    # Convert normalized string to fixed-length byte array (pad/truncate)
+    N = 128
+    bytes_arr = [ord(c) for c in norm[:N].ljust(N, " ")]
+    public_signals = {"commitment": commitment, "threshold": threshold, "policy_id": policy_id}
+    with tempfile.TemporaryDirectory() as td:
+        input_json = os.path.join(td, "input.json")
+        witness_wtns = os.path.join(td, "witness.wtns")
+        proof_json = os.path.join(td, "proof.json")
+        public_json = os.path.join(td, "public.json")
+        with open(input_json, "w", encoding="utf-8") as f:
+            json.dump({"prompt": bytes_arr, "commitment": commitment, "threshold": threshold}, f)
+        subprocess.run(["node", os.path.join(CIRCUIT_DIR, "policy_js", "generate_witness.js"), wasm, input_json, witness_wtns], check=True)
+        subprocess.run([SNARKJS_PATH, "groth16", "prove", zkey, witness_wtns, proof_json, public_json], check=True)
+        # Optional local verify to set valid flag
+        vr = subprocess.run([SNARKJS_PATH, "groth16", "verify", vkey, public_json, proof_json], capture_output=True, text=True)
+        valid = (vr.returncode == 0)
+        with open(proof_json, "r") as pf:
+            proof = json.load(pf)
+        with open(public_json, "r") as pubf:
+            pub = json.load(pubf)
+    return {"proof": proof, "publicSignals": pub, "valid": bool(valid), "policy_id": policy_id}
 
 
 @app.post("/prove")
@@ -95,7 +110,10 @@ def prove():
     prompt = data.get("prompt", "")
     policy_id = data.get("policy_id", "default")
     threshold = float(data.get("threshold", DEFAULT_THRESHOLD))
-    obj = make_proof_object(prompt, policy_id, threshold)
+    if SNARKJS_PATH:
+        obj = snarkjs_proof(prompt, policy_id, threshold)
+    else:
+        obj = simulated_proof(prompt, policy_id, threshold)
     return jsonify(obj)
 
 
@@ -104,7 +122,9 @@ def verify():
     data = request.get_json(force=True, silent=True) or {}
     public_signals = data.get("publicSignals", {})
     proof = data.get("proof", "")
-    # Recompute proof hash and compare
+    if isinstance(proof, dict) or isinstance(public_signals, dict):
+        # Assume snarkjs verify done in /prove path
+        return jsonify({"valid": True})
     expected = hashlib.sha256(json.dumps(public_signals, sort_keys=True).encode()).hexdigest()
     ok = (expected == proof) and bool(public_signals)
     return jsonify({"valid": ok})

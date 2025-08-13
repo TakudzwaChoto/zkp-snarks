@@ -88,10 +88,7 @@ logger = SecureLogger()
 zkp_security = ZKPSecurity()
 
 # Demo user database (username: password, role)
-USERS = {
-    "admin": {"password": "adminpass", "role": "admin"},
-    "user": {"password": "userpass", "role": "user"}
-}
+# Users now in SQLite; default admin created from env in database.py
 
 def login_required(role=None):
     def decorator(f):
@@ -109,11 +106,13 @@ def login_required(role=None):
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    from werkzeug.security import check_password_hash
+    from database import get_user
     if request.method == "POST":
         username = request.form.get("username")
         password = request.form.get("password")
-        user = USERS.get(username)
-        if user and user["password"] == password:
+        user = get_user(username)
+        if user and check_password_hash(user["password_hash"], password):
             session["user"] = username
             session["role"] = user["role"]
             flash(f"Logged in as {username} ({user['role']})")
