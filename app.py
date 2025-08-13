@@ -328,8 +328,25 @@ def index():
                 session.modified = True
                 audit_info = {
                     'prompt': prompt,
-                    'explanation': f'Strict mode: blocked by sanitization, self-checker, ZKP or SNARK validation. ZKP Safety Score: {zkp_proof.metadata.get("safety_score", 0):.2f}; SNARK: {"valid" if snark_valid else "invalid"}',
-                    'status': 'blocked (strict mode)'
+                    'status': 'blocked (strict mode)',
+                    'blocked_layers': {
+                        'sanitizer': bool(triggered),
+                        'llm_self_check': bool(not llm_ok),
+                        'zkp_valid': bool(zkp_valid),
+                        'snark_valid': bool(snark_valid)
+                    },
+                    'zkp_safety_score': zkp_proof.metadata.get('safety_score', 0),
+                    'zkp_proof_id': zkp_proof.commitment[:16],
+                    'snark_policy_id': os.getenv('SNARK_POLICY_ID', 'default'),
+                    'snark_score': (snark_obj or {}).get('publicSignals', {}).get('score'),
+                    'normalizer_version': NORMALIZER_VERSION,
+                    'timings_ms': {
+                        'sanitize': round(t_sanitize*1000, 2),
+                        'llm_self_check': round(t_llm*1000, 2),
+                        'zkp': round(t_zkp*1000, 2),
+                        'snark': round(t_snark*1000, 2)
+                    },
+                    'explanation': session.get('self_check_reason', '')
                 }
                 session['audit_info'] = audit_info
                 flash("Prompt blocked: Strict mode (sanitization, self-checker, ZKP or SNARK validation).")
@@ -339,8 +356,24 @@ def index():
                 reason = 'Sanitization' if triggered else ('ZKP validation' if not zkp_valid else 'SNARK validation')
                 audit_info = {
                     'prompt': prompt,
-                    'explanation': f'Security layer blocked: {reason} detected suspicious content. ZKP Safety Score: {zkp_proof.metadata.get("safety_score", 0):.2f}; SNARK: {"valid" if snark_valid else "invalid"}',
-                    'status': 'blocked (security layer)'
+                    'status': 'blocked (security layer)',
+                    'blocked_layers': {
+                        'sanitizer': bool(triggered),
+                        'llm_self_check': None,
+                        'zkp_valid': bool(zkp_valid),
+                        'snark_valid': bool(snark_valid)
+                    },
+                    'zkp_safety_score': zkp_proof.metadata.get('safety_score', 0),
+                    'zkp_proof_id': zkp_proof.commitment[:16],
+                    'snark_policy_id': os.getenv('SNARK_POLICY_ID', 'default'),
+                    'snark_score': (snark_obj or {}).get('publicSignals', {}).get('score'),
+                    'normalizer_version': NORMALIZER_VERSION,
+                    'timings_ms': {
+                        'sanitize': round(t_sanitize*1000, 2),
+                        'zkp': round(t_zkp*1000, 2),
+                        'snark': round(t_snark*1000, 2)
+                    },
+                    'explanation': reason
                 }
                 session['audit_info'] = audit_info
                 session["chat_history"].append(user_msg)

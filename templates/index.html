@@ -242,13 +242,23 @@
         {% if audit_info %}
         <div class="audit-card">
             <div class="audit-title">
-                LLM Self-Checker Audit
+                Security Audit
                 <span class="audit-status {{ audit_info.status }}">{{ audit_info.status|capitalize }}</span>
             </div>
             <div><b>Prompt:</b></div>
             <div class="audit-prompt">{{ audit_info.prompt }}</div>
-            <div><b>Self-Checker Explanation:</b></div>
-            <div class="audit-explanation">{{ audit_info.explanation }}</div>
+            <div style="margin-top:8px;">
+              <b>Layers:</b>
+              <ul>
+                <li>Sanitizer: {{ 'blocked' if audit_info.blocked_layers and audit_info.blocked_layers.sanitizer else 'ok' }}</li>
+                <li>LLM Self-Check: {% if audit_info.blocked_layers and audit_info.blocked_layers.llm_self_check is not none %}{{ 'blocked' if audit_info.blocked_layers.llm_self_check else 'ok' }}{% else %}-{% endif %}</li>
+                <li>ZKP: {{ 'ok' if audit_info.blocked_layers and audit_info.blocked_layers.zkp_valid else 'blocked' }} (score: {{ '%.2f'|format(audit_info.zkp_safety_score or 0) }}, proof: {{ audit_info.zkp_proof_id or '-' }})</li>
+                <li>SNARK: {{ 'ok' if audit_info.blocked_layers and audit_info.blocked_layers.snark_valid else 'blocked' }} (policy: {{ audit_info.snark_policy_id or '-' }}, score: {{ audit_info.snark_score or '-' }})</li>
+                <li>Normalizer: {{ audit_info.normalizer_version or '-' }}</li>
+              </ul>
+            </div>
+            <div style="margin-top:8px;"><b>Timings (ms):</b> sanitize={{ audit_info.timings_ms.sanitize if audit_info.timings_ms else '-' }}, zkp={{ audit_info.timings_ms.zkp if audit_info.timings_ms else '-' }}, snark={{ audit_info.timings_ms.snark if audit_info.timings_ms else '-' }}, self-check={{ audit_info.timings_ms['llm_self_check'] if audit_info.timings_ms and 'llm_self_check' in audit_info.timings_ms else '-' }}</div>
+            <div style="margin-top:8px;"><b>Explanation:</b> <span class="audit-explanation">{{ audit_info.explanation }}</span></div>
         </div>
         {% endif %}
         {% if user %}
