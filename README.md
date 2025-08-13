@@ -187,7 +187,7 @@ python run_evaluation.py -d data/synth_50k.json
 - Persistent AES key; hash‑chain + signature verification fixed
 - Timeouts for LLM calls; env‑configurable models and base URL
 
-## Guarantees and limits (for your paper)
+## Guarantees and limits
 - Cryptographic
   - ZKP: integrity of safety scoring and commitment on the normalized prompt
   - SNARK: policy compliance without revealing the prompt (when using real circuit)
