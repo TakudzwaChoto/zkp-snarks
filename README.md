@@ -55,21 +55,20 @@ python app.py
 ## Architecture (multilayer: SNARK + ZKP + heuristics)
 ```mermaid
 flowchart TD
-  A[User Prompt] --> N[Normalize<br/>(lowercase, whitespace, de‑leetspeak, homoglyphs)]
-  N --> S[Sanitizer/Policy DFA]
-  N --> Z[ZKP safety score + commitment]
-  N --> K[SNARK policy proof]
-  S --> D{Decision}
-  Z --> D
-  K --> D
-  D -->|blocked| B[Audit + Flash + Logs]
-  D -->|allowed| G[Guardrailed Prompt]
-  G --> LLM[Ollama Model]
-  LLM --> OF[Output Filter]
-  OF -->|blocked| B
-  OF -->|allowed| LOG[Privacy‑preserving Log
-(AES‑GCM + hash‑chain + signature)]
-  LOG --> UI[UI: Audit Card shows per‑layer status]
+    A[User Prompt] --> N["Normalize (lowercase, whitespace, de-leetspeak, homoglyphs)"]
+    N --> S[Sanitizer/Policy DFA]
+    N --> Z[ZKP safety score + commitment]
+    N --> K[SNARK policy proof]
+    S --> D{Decision}
+    Z --> D
+    K --> D
+    D -->|blocked| B[Audit + Flash + Logs]
+    D -->|allowed| G[Guardrailed Prompt]
+    G --> LLM[Ollama Model]
+    LLM --> OF[Output Filter]
+    OF -->|blocked| B
+    OF -->|allowed| LOG["Privacy-preserving Log (AES-GCM + hash-chain + signature)"]
+    LOG --> UI["UI: Audit Card shows per-layer status"]
 ```
 
 ## Request lifecycle (sequence)
