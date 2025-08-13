@@ -9,7 +9,19 @@ import sqlite3
 
 class SecureLogger:
     def __init__(self):
-        self.aes_key = os.urandom(32)  # Random AES key (store securely in production!)
+        key_env = os.getenv("SECURE_LOGGER_AES_KEY")
+        if key_env:
+            self.aes_key = bytes.fromhex(key_env)
+        else:
+            os.makedirs("keys", exist_ok=True)
+            key_path = os.path.join("keys", "aes.key")
+            if os.path.exists(key_path):
+                with open(key_path, "rb") as f:
+                    self.aes_key = f.read()
+            else:
+                self.aes_key = os.urandom(32)
+                with open(key_path, "wb") as f:
+                    f.write(self.aes_key)
         self.private_key = self._load_ed25519_key("keys/ed25519_private.pem")
         self.public_key = self._load_ed25519_key("keys/ed25519_public.pem", private=False)
 
@@ -73,19 +85,22 @@ class SecureLogger:
 
         for i in range(1, len(logs)):
             prev_log, curr_log = logs[i-1], logs[i]
-            # Check hash chain
+            # Ensure pointer matches
+            if curr_log[5] != prev_log[6]:
+                return False
+            # Recompute current hash from current row's encrypted fields and previous_hash
             expected_hash = hashlib.sha256(
-                f"{curr_log[3]}{curr_log[4]}{prev_log[6]}".encode()
+                f"{curr_log[3]}{curr_log[4]}{curr_log[5]}".encode()
             ).hexdigest()
             if curr_log[6] != expected_hash:
                 return False
-            # Verify signature
+            # Verify signature over current_hash
             try:
                 self.public_key.verify(
                     bytes.fromhex(curr_log[7]),
                     curr_log[6].encode()
                 )
-            except:
+            except Exception:
                 return False
         return True
     

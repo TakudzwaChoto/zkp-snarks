@@ -6,6 +6,7 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass
 import os
 import requests
+from security.normalizer import normalize_prompt, NORMALIZER_VERSION
 
 @dataclass
 class ZKProof:
@@ -35,17 +36,19 @@ class ZKPSecurity:
         nonce = secrets.token_hex(16)
         timestamp = int(time.time())
         
-        prompt_commitment = self._create_commitment(prompt, nonce)
+        normalized = normalize_prompt(prompt)
+        prompt_commitment = self._create_commitment(normalized, nonce)
         rules_hash = self._hash_data(json.dumps(safety_rules, sort_keys=True))
         
         challenge = self._hash_data(prompt_commitment + rules_hash + str(timestamp))
         
-        safety_score = self._calculate_safety_score(prompt, safety_rules)
+        safety_score = self._calculate_safety_score(normalized, safety_rules)
         response_data = {
-            "prompt_length": len(prompt),
+            "prompt_length": len(normalized),
             "safety_score": safety_score,
             "rules_count": len(safety_rules),
-            "timestamp": timestamp
+            "timestamp": timestamp,
+            "normalizer_version": NORMALIZER_VERSION
         }
         response = self._hash_data(json.dumps(response_data, sort_keys=True))
         
@@ -97,12 +100,13 @@ class ZKPSecurity:
 
     def _calculate_safety_score(self, prompt: str, safety_rules: List[str]) -> float:
         score = 1.0
-        prompt_lower = prompt.lower()
+        prompt_lower = prompt
         
         # High-risk adversarial patterns (major penalty)
         high_risk_patterns = [
             "ignore previous", "bypass", "system prompt", "act as admin", 
-            "roleplay as", "admin password", "secret", "override", "disregard"
+            "roleplay as", "admin password", "secret", "override", "disregard",
+            "/etc/passwd", "api key", "private key", "token"
         ]
         
         # Medium-risk patterns (moderate penalty)
@@ -141,8 +145,8 @@ class ZKPSecurity:
             if proof.challenge != expected_challenge:
                 return False
             
-            # Stricter safety threshold - block anything below 0.7
-            if proof.metadata.get("safety_score", 0) < 0.7:
+            # Stricter safety threshold - block anything below 0.6
+            if proof.metadata.get("safety_score", 0) < 0.6:
                 return False
             
             return True

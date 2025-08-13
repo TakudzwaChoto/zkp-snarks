@@ -4,6 +4,9 @@ from zkp_security import ZKPSecurity, ZKProof
 import os
 from autogen import AssistantAgent, UserProxyAgent
 from dotenv import load_dotenv
+from security.normalizer import normalize_prompt, NORMALIZER_VERSION
+from flask_wtf.csrf import CSRFProtect
+import secrets as pysecrets
 import requests
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -24,9 +27,9 @@ DEFAULT_MODEL = "gemma:2b"
 
 # --- Configuration for Local Ollama Model ---
 llm_config = {
-       "model": DEFAULT_MODEL,
-       "api_key": "not_needed",
-       "base_url": "http://localhost:11434/v1",
+       "model": os.getenv("OLLAMA_MODEL", DEFAULT_MODEL),
+       "api_key": os.getenv("LLM_API_KEY", "not_needed"),
+       "base_url": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
 }
 
 # --- Agent Setup ---
@@ -46,14 +49,14 @@ user_proxy = UserProxyAgent(
 
 def get_llm_response(prompt: str) -> str:
     try:
-        model = session.get("llm_model", DEFAULT_MODEL)
-        url = "http://localhost:11434/v1/chat/completions"
+        model = session.get("llm_model", llm_config["model"])
+        url = f"{llm_config['base_url']}/chat/completions"
         payload = {
             "model": model,
             "messages": [{"role": "user", "content": prompt}]
         }
         headers = {"Content-Type": "application/json"}
-        resp = requests.post(url, json=payload, headers=headers)
+        resp = requests.post(url, json=payload, headers=headers, timeout=(5, 60))
         resp.raise_for_status()
         data = resp.json()
         # Extract the assistant's reply
@@ -67,7 +70,13 @@ def get_llm_response(prompt: str) -> str:
 
 
 app = Flask(__name__)
-app.secret_key = "change_this_to_a_random_secret_1234567890"
+app.secret_key = os.getenv("FLASK_SECRET_KEY", pysecrets.token_hex(32))
+app.config.update(
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+)
+csrf = CSRFProtect(app)
 
 # Set up rate limiting
 limiter = Limiter(
@@ -128,7 +137,7 @@ def sanitize_prompt(prompt: str) -> (str, bool):
     # Expanded and structured suspicious patterns for prompt injection and adversarial intent
     suspicious_patterns = [
         # Direct instruction bypass
-        r"ignore(\s+all|\s+previous|\s+the)?\s*instructions?",
+        r"ignore\s*(all|previous|the)?\s*instructions?",
         r"system\s*prompt", r"role\s*play\s+as", r"act\s+as",
         r"output.*system\s*prompt", r"show.*password", r"admin.*credentials", r"hacked",
         r"bypass", r"override", r"simulate", r"impersonate", r"disregard(\s+above|\s+previous)?",
@@ -159,13 +168,16 @@ def sanitize_prompt(prompt: str) -> (str, bool):
         r"[а-яА-ЯёЁ]+", r"[α-ωΑ-Ω]+",
         # Encoded/obfuscated payloads
         r"%[0-9a-fA-F]{2,}",
+        # Sensitive paths and variants
+        r"/\s*e\s*t\s*c\s*/\s*p\s*a\s*s\s*s\s*w\s*d",
     ]
+    normalized = normalize_prompt(prompt)
     triggered = False
     for pattern in suspicious_patterns:
-        if re.search(pattern, prompt, re.IGNORECASE):
+        if re.search(pattern, normalized, re.IGNORECASE):
             triggered = True
             print(f"Sanitization blocked pattern: {pattern}")
-    return prompt, triggered
+    return normalized, triggered
 
 def validate_prompt(prompt: str) -> bool:
     if not prompt or len(prompt) > 1000:
@@ -288,13 +300,19 @@ def index():
         
         # ZKP-based prompt validation
         safety_rules = ["no_personal_info", "no_harmful_content", "no_prompt_injection"]
+        t0 = datetime.now()
         zkp_proof = zkp_security.generate_prompt_safety_proof(prompt, safety_rules)
         zkp_valid = zkp_security.verify_prompt_safety_proof(zkp_proof, safety_rules)
+        t_zkp = (datetime.now() - t0).total_seconds()
         # Optional SNARK policy proof
-        snark_obj = zkp_security.generate_snark_policy_proof(prompt)
+        t1 = datetime.now()
+        snark_obj = zkp_security.generate_snark_policy_proof(normalize_prompt(prompt))
         snark_valid = zkp_security.verify_snark_policy_proof(snark_obj)
+        t_snark = (datetime.now() - t1).total_seconds()
         
+        t2 = datetime.now()
         sanitized_prompt, triggered = sanitize_prompt(prompt)
+        t_sanitize = (datetime.now() - t2).total_seconds()
         user_msg = {
             "role": "user",
             "content": prompt,
@@ -304,7 +322,8 @@ def index():
         }
         # Strict mode: block if sanitization, self-checker, or ZKP validation fails
         if strict_mode:
-            if triggered or not llm_self_check(prompt) or not zkp_valid or not snark_valid:
+            t3 = datetime.now(); llm_ok = llm_self_check(prompt); t_llm = (datetime.now()-t3).total_seconds()
+            if triggered or not llm_ok or not zkp_valid or not snark_valid:
                 user_msg["status"] = "blocked"
                 session["chat_history"].append(user_msg)
                 session.modified = True
@@ -336,7 +355,8 @@ def index():
                 flash("Prompt blocked: possible injection or invalid input.")
                 return redirect(url_for("index"))
             # LLM self-checker
-            if not llm_self_check(sanitized_prompt):
+            t1 = datetime.now(); llm_ok = llm_self_check(sanitized_prompt); t_llm = (datetime.now()-t1).total_seconds()
+            if not llm_ok:
                 user_msg["status"] = "blocked"
                 session["chat_history"].append(user_msg)
                 session.modified = True
@@ -349,9 +369,10 @@ def index():
                 flash("Prompt blocked: detected as possible prompt injection or adversarial intent by LLM self-checker.")
                 return redirect(url_for("index"))
         guarded_prompt = add_safety_guardrails(sanitized_prompt)
-        response = get_llm_response(guarded_prompt)
+        t2 = datetime.now(); response = get_llm_response(guarded_prompt); t_llm_gen = (datetime.now()-t2).total_seconds()
         # Output filtering
-        if not output_filter(response):
+        t3 = datetime.now(); out_ok = output_filter(response); t_out = (datetime.now()-t3).total_seconds()
+        if not out_ok:
             user_msg["status"] = "blocked"
             session["chat_history"].append(user_msg)
             session.modified = True
@@ -383,7 +404,9 @@ def index():
             'explanation': session.get('self_check_reason', ''),
             'status': 'allowed',
             'zkp_safety_score': zkp_proof.metadata.get("safety_score", 0),
-            'zkp_log_id': zkp_log_entry["interaction_id"]
+            'zkp_log_id': zkp_log_entry["interaction_id"],
+            'normalizer_version': NORMALIZER_VERSION,
+            'snark_policy_id': os.getenv('SNARK_POLICY_ID', 'default')
         }
         session['audit_info'] = audit_info
         flash(f"Log ID: {log_id} | ZKP Log ID: {zkp_log_entry['interaction_id'][:8]}...")
@@ -438,7 +461,7 @@ def test_zkp():
     return render_template("zkp_test.html", results=results)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)), debug=os.getenv("FLASK_DEBUG","false").lower()=="true")
 
 #Models
 #ollama run llama2:7b
