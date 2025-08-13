@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import os
 import requests
 from security.normalizer import normalize_prompt, NORMALIZER_VERSION
+from security.policy_dfa import PolicyDFA, load_policy_terms
 
 @dataclass
 class ZKProof:
@@ -25,6 +26,10 @@ class ZKPSecurity:
         self.snark_prover_url: Optional[str] = os.getenv("SNARK_PROVER_URL")
         self.snark_verify_url: Optional[str] = os.getenv("SNARK_VERIFY_URL")
         self.snark_policy_id: str = os.getenv("SNARK_POLICY_ID", "default")
+        # DFA policy terms (optional)
+        terms_path = os.getenv("POLICY_TERMS_PATH")
+        terms = load_policy_terms(terms_path) if terms_path else []
+        self.policy_dfa = PolicyDFA(terms)
     
     def _hash_data(self, data: str) -> str:
         return hashlib.sha256(data.encode()).hexdigest()
@@ -101,6 +106,10 @@ class ZKPSecurity:
     def _calculate_safety_score(self, prompt: str, safety_rules: List[str]) -> float:
         score = 1.0
         prompt_lower = prompt
+        
+        # DFA-based hit reduces score significantly
+        if self.policy_dfa.matches(prompt_lower):
+            score -= 0.5
         
         # High-risk adversarial patterns (major penalty)
         high_risk_patterns = [

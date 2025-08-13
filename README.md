@@ -40,3 +40,14 @@ export SNARK_VERIFY_URL=http://127.0.0.1:5001/verify
 python app.py
 ```
 - Note: current prover is simulated; replace with real Circom/PLONK prover later.
+
+## Policy and normalization
+- Shared normalizer: lowercase, whitespace collapse, de-leetspeak, homoglyph folding; versioned via `NORMALIZER_VERSION`.
+- DFA-based policy (trie) loaded via `POLICY_TERMS_PATH` (JSON list). Used inside ZKP safety scoring and can be mirrored in SNARK.
+
+## Security
+- CSRF protection enabled on all POST routes; secure cookies (Secure/HttpOnly/SameSite=Lax).
+- Persistent AES key for `SecureLogger` via `SECURE_LOGGER_AES_KEY` or `keys/aes.key`.
+
+## Container
+- App runs under gunicorn as non-root; healthcheck added.
