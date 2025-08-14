@@ -5,7 +5,7 @@ import os
 from autogen import AssistantAgent, UserProxyAgent
 from dotenv import load_dotenv
 from security.normalizer import normalize_prompt, NORMALIZER_VERSION
-from flask_wtf.csrf import CSRFProtect
+from flask_wtf.csrf import CSRFProtect, generate_csrf
 import secrets as pysecrets
 import requests
 from flask_limiter import Limiter
@@ -72,11 +72,15 @@ def get_llm_response(prompt: str) -> str:
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", pysecrets.token_hex(32))
 app.config.update(
-    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_SECURE=os.getenv("SESSION_COOKIE_SECURE", "false").lower()=="true",
     SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SAMESITE=os.getenv("SESSION_COOKIE_SAMESITE", "Lax"),
 )
 csrf = CSRFProtect(app)
+
+@app.context_processor
+def inject_csrf_token():
+    return dict(csrf_token=generate_csrf)
 
 # Set up rate limiting
 limiter = Limiter(

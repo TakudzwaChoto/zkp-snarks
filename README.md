@@ -46,7 +46,7 @@ python app.py
 - DFA-based policy (trie) loaded via `POLICY_TERMS_PATH` (JSON list). Used inside ZKP safety scoring and can be mirrored in SNARK.
 
 ## Security
-- CSRF protection enabled on all POST routes; secure cookies (Secure/HttpOnly/SameSite=Lax).
+- CSRF protection enabled on all POST routes; tokens are injected into templates and validated server-side. For local dev over HTTP, set `SESSION_COOKIE_SECURE=false`. Cookies use HttpOnly and SameSite=Lax by default.
 - Persistent AES key for `SecureLogger` via `SECURE_LOGGER_AES_KEY` or `keys/aes.key`.
 
 ## Container
