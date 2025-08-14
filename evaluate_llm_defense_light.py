@@ -7,11 +7,30 @@ import time
 from datetime import datetime
 import requests
 from typing import List, Dict, Tuple
+import json
+import os
 
 try:
     from data.generate_synthetic_dataset import sample_benign, sample_adversarial
 except Exception as e:
     raise SystemExit(f"Failed to import synthetic generator: {e}")
+
+
+def load_dataset(path: str) -> List[Tuple[str, str]]:
+    ext = os.path.splitext(path)[1].lower()
+    if ext == '.json':
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return [(str(o['prompt']), str(o['label'])) for o in data]
+    elif ext == '.csv':
+        out = []
+        with open(path, 'r', encoding='utf-8') as f:
+            r = csv.DictReader(f)
+            for row in r:
+                out.append((str(row['prompt']), str(row['label'])))
+        return out
+    else:
+        raise SystemExit('Dataset must be .json or .csv')
 
 
 def generate_dataset(n_benign: int, n_adv: int, seed: int) -> List[Tuple[str, str]]:
@@ -23,13 +42,13 @@ def generate_dataset(n_benign: int, n_adv: int, seed: int) -> List[Tuple[str, st
     return dataset
 
 
-def evaluate_dataset(dataset: List[Tuple[str, str]], url: str, strict: bool, self_check: bool, rate_delay_s: float = 0.02) -> List[Dict]:
+def evaluate_dataset(dataset: List[Tuple[str, str]], url: str, strict: bool, self_check: bool, rate_delay_s: float = 0.0) -> List[Dict]:
     session = requests.Session()
     api = url.rstrip('/') + '/api/check'
     results: List[Dict] = []
     for prompt, label in dataset:
         try:
-            resp = session.post(api, json={"prompt": prompt, "strict": strict, "self_check": self_check}, timeout=30)
+            resp = session.post(api, json={"prompt": prompt, "strict": strict, "self_check": self_check}, timeout=60)
             data = resp.json() if resp.headers.get('content-type','').startswith('application/json') else {}
             results.append({
                 'prompt': prompt,
@@ -52,7 +71,8 @@ def evaluate_dataset(dataset: List[Tuple[str, str]], url: str, strict: bool, sel
                 'zkp_valid': True,
                 'snark_valid': True,
             })
-        time.sleep(rate_delay_s)
+        if rate_delay_s:
+            time.sleep(rate_delay_s)
     return results
 
 
@@ -83,7 +103,6 @@ def print_report(results: List[Dict]) -> None:
     print("\nBlocked by breakdown (label, layer):")
     for (label, layer), count in sorted(by.items(), key=lambda x: (-x[1], x[0])):
         print(f"  {label:12s} -> {layer:12s}: {count}")
-    # Examples
     fps = [r for r in results if r['label'] == 'benign' and r['blocked']][:5]
     fns = [r for r in results if r['label'] == 'adversarial' and not r['blocked']][:5]
     print("\nExample False Positives:")
@@ -105,18 +124,24 @@ def save_csv(results: List[Dict], path: str) -> None:
 def main():
     ap = argparse.ArgumentParser(description='Lightweight synthetic evaluation using /api/check')
     ap.add_argument('--url', type=str, default='http://127.0.0.1:5000/', help='Flask app base URL')
-    ap.add_argument('--benign', type=int, default=200)
-    ap.add_argument('--adversarial', type=int, default=200)
+    ap.add_argument('--benign', type=int, default=0)
+    ap.add_argument('--adversarial', type=int, default=0)
+    ap.add_argument('--dataset', type=str, default='', help='Path to JSON/CSV dataset to evaluate instead of generating')
     ap.add_argument('--seed', type=int, default=7)
     ap.add_argument('--strict', action='store_true', help='Strict mode logic in API')
     ap.add_argument('--self_check', action='store_true', help='Enable self-check in API')
+    ap.add_argument('--save', type=str, default='', help='Optional CSV output path')
     args = ap.parse_args()
 
-    ds = generate_dataset(args.benign, args.adversarial, args.seed)
+    if args.dataset:
+        ds = load_dataset(args.dataset)
+    else:
+        ds = generate_dataset(args.benign, args.adversarial, args.seed)
+
     results = evaluate_dataset(ds, args.url, strict=args.strict, self_check=args.self_check)
     print_report(results)
     ts = datetime.now().strftime('%Y%m%d_%H%M%S')
-    out = f"llm_defense_eval_results_light_{ts}.csv"
+    out = args.save or f"llm_defense_eval_results_light_{ts}.csv"
     save_csv(results, out)
     print(f"\nSaved: {out}")
 

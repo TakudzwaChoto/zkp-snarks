@@ -504,6 +504,7 @@ def test_zkp():
     
     return render_template("zkp_test.html", results=results)
 
+@limiter.exempt
 @app.route("/api/check", methods=["POST"])
 @csrf.exempt
 def api_check():
