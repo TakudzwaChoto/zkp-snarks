@@ -506,6 +506,22 @@ def test_zkp():
     
     return render_template("zkp_test.html", results=results)
 
+TRANSFORMER_INFER_URL = os.getenv('TRANSFORMER_INFER_URL', 'http://127.0.0.1:8100/infer')
+USE_TRANSFORMER = os.getenv('USE_TRANSFORMER', 'false').lower() in ('1','true','yes')
+
+def transformer_score(prompt: str) -> float:
+    if not USE_TRANSFORMER:
+        return 0.0
+    try:
+        resp = requests.post(TRANSFORMER_INFER_URL, json={'texts':[prompt]}, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+        probs = data.get('probs', [0.0])
+        return float(probs[0]) if probs else 0.0
+    except Exception as e:
+        print(f"Transformer inference error: {e}")
+        return 0.0
+
 @limiter.exempt
 @app.route("/api/check", methods=["POST"])
 @csrf.exempt
@@ -542,34 +558,42 @@ def api_check():
         llm_ok = llm_self_check(sanitized_prompt)
         timings["llm_self_check"] = round((_now() - t3) * 1000, 2)
 
+    # Optional transformer classifier score
+    tf_prob = 0.0
+    if USE_TRANSFORMER:
+        t4 = _now()
+        tf_prob = transformer_score(sanitized_prompt)
+        timings["transformer_infer"] = round((_now() - t4) * 1000, 2)
+
     blocked_layers = {
         "sanitizer": bool(triggered),
         "llm_self_check": (not llm_ok) if do_self_check else None,
         "zkp_valid": bool(zkp_valid),
-        "snark_valid": bool(snark_valid)
+        "snark_valid": bool(snark_valid),
+        "transformer_prob": tf_prob if USE_TRANSFORMER else None
     }
 
     # Determine blocked status and by which layer
     blocked = False
     blocked_by = None
     if strict:
-        if triggered:
-            blocked, blocked_by = True, "sanitizer"
-        elif do_self_check and not llm_ok:
-            blocked, blocked_by = True, "self_checker"
-        elif not zkp_valid:
+        if not zkp_valid:
             blocked, blocked_by = True, "zkp"
         elif not snark_valid:
             blocked, blocked_by = True, "snark"
+        elif do_self_check and not llm_ok:
+            blocked, blocked_by = True, "self_checker"
+        elif USE_TRANSFORMER and tf_prob >= float(os.getenv('TRANSFORMER_BLOCK_THRESHOLD','0.7')):
+            blocked, blocked_by = True, "transformer"
     else:
-        if triggered:
-            blocked, blocked_by = True, "sanitizer"
-        elif not zkp_valid:
+        if not zkp_valid:
             blocked, blocked_by = True, "zkp"
         elif not snark_valid:
             blocked, blocked_by = True, "snark"
         elif do_self_check and not llm_ok:
             blocked, blocked_by = True, "self_checker"
+        elif USE_TRANSFORMER and tf_prob >= float(os.getenv('TRANSFORMER_BLOCK_THRESHOLD','0.85')):
+            blocked, blocked_by = True, "transformer"
 
     result = {
         "prompt": prompt,
