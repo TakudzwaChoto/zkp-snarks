@@ -307,6 +307,45 @@ class AdvancedEvaluationPipeline:
 			metadata={"risk_factors": total_risk, "processing_time": detection_time}
 		)
 		
+	def semantic_fast_detection(self, prompt: str) -> DetectionResult:
+		"""Lightweight semantic detector without external deps to boost recall.
+		Scores lexical signals and obfuscation patterns; tuned to minimize FPs.
+		"""
+		start_time = time.time()
+		p = prompt.lower()
+		# Core adversarial cues
+		cues = [
+			"ignore", "instruction", "bypass", "unrestricted", "override",
+			"disregard", "leak", "reveal", "system", "prompt", "admin",
+			"password", "api key", "private key", "token", "secrets",
+			"disable logging", "no rules", "no restrictions", "roleplay", "pretend"
+		]
+		# Obfuscation/indirection signals
+		bonus_patterns = [
+			r"user:\s.*system:\s", r"\(base64\)", r"\b0x[0-9a-f]+\b",
+			r"\\x[0-9a-f]{2,}", r"\\u[0-9a-f]{4}", r"\d+[a-z]+\d+", r"[а-яα-ω]"
+		]
+		# Feature aggregation
+		score = 0.0
+		for w in cues:
+			if w in p:
+				score += 0.12
+		# Paired cues (stronger if both present)
+		if ("ignore" in p and "instruction" in p) or ("system" in p and "prompt" in p):
+			score += 0.3
+		# Obfuscation bonuses
+		import re as _re
+		for pat in bonus_patterns:
+			if _re.search(pat, p):
+				score += 0.08
+		# Cap score
+		score = max(0.0, min(1.0, score))
+		# Slight margin to reduce FPs on benign
+		threshold = 0.55
+		pred = "adversarial" if score >= threshold else "safe"
+		detection_time = time.time() - start_time
+		return DetectionResult(prompt, "", pred, score, detection_time, "Semantic Fast", {"threshold": threshold, "score": score})
+		
 	def ensemble_detection(self, prompt: str) -> DetectionResult:
 		"""Combine multiple detection methods"""
 		start_time = time.time()
@@ -315,24 +354,30 @@ class AdvancedEvaluationPipeline:
 		zkp_result = self.zkp_detection(prompt)
 		regex_result = self.regex_baseline(prompt)
 		llm_result = self.llm_simulator(prompt)
+		sem_fast_result = self.semantic_fast_detection(prompt)
 		
 		# Weighted ensemble (ZKP gets higher weight)
-		weights = {"ZKP": 0.5, "Regex": 0.2, "LLM": 0.3}
+		weights = {"ZKP": 0.5, "Regex": 0.2, "LLM": 0.3, "SF": 0.4}
 		
 		zkp_score = 1 if zkp_result.predicted_label == "adversarial" else 0
 		regex_score = 1 if regex_result.predicted_label == "adversarial" else 0
 		llm_score = 1 if llm_result.predicted_label == "adversarial" else 0
+		sf_score = 1 if sem_fast_result.predicted_label == "adversarial" else 0
+		
+		# High-precision rule: block if ZKP says adversarial OR (SemanticFast and (Regex or LLM))
+		is_adv = (zkp_score == 1) or (sf_score == 1 and (regex_score == 1 or llm_score == 1))
 		
 		ensemble_score = (zkp_score * weights["ZKP"] + 
 			regex_score * weights["Regex"] + 
-			llm_score * weights["LLM"])
+			llm_score * weights["LLM"] +
+			sf_score * weights["SF"]) / sum(weights.values())
 		
 		detection_time = time.time() - start_time
 		
 		return DetectionResult(
 			prompt=prompt,
 			true_label="",
-			predicted_label="adversarial" if ensemble_score > 0.3 else "safe",
+			predicted_label="adversarial" if is_adv else "safe",
 			confidence=ensemble_score,
 			detection_time=detection_time,
 			method="Ensemble",
@@ -340,6 +385,7 @@ class AdvancedEvaluationPipeline:
 				"zkp_score": zkp_score,
 				"regex_score": regex_score,
 				"llm_score": llm_score,
+				"sf_score": sf_score,
 				"ensemble_score": ensemble_score
 			}
 		)
@@ -353,6 +399,7 @@ class AdvancedEvaluationPipeline:
 			"ZKP Framework": self.zkp_detection,
 			"Regex Baseline": self.regex_baseline,
 			"LLM Simulator": self.llm_simulator,
+			"Semantic Fast": self.semantic_fast_detection,
 			"Ensemble": self.ensemble_detection
 		}
 		
@@ -603,6 +650,7 @@ class AdvancedEvaluationPipeline:
 			"ZKP Framework": [],
 			"Regex Baseline": [],
 			"LLM Simulator": [],
+			"Semantic Fast": [],
 			"Ensemble": []
 		}
 		
@@ -623,6 +671,12 @@ class AdvancedEvaluationPipeline:
 			res = self.llm_simulator(prompt)
 			res.true_label = true_label
 			all_results["LLM Simulator"].append(res)
+		
+		print("\n📊 Evaluating Semantic Fast...")
+		for prompt, true_label in self.test_dataset:
+			res = self.semantic_fast_detection(prompt)
+			res.true_label = true_label
+			all_results["Semantic Fast"].append(res)
 		
 		# Train when dataset is reasonably large but not massive to avoid memory spikes
 		if 2000 <= len(self.test_dataset) <= 60000:
@@ -659,21 +713,15 @@ class AdvancedEvaluationPipeline:
 		
 		print("\n📊 Evaluating Ensemble...")
 		for i, (prompt, true_label) in enumerate(self.test_dataset):
-			# Simple OR ensemble over methods for recall boost
+			# High-precision rule using Semantic Fast + other methods
 			zkp_res = all_results["ZKP Framework"][i]
 			re_res = all_results["Regex Baseline"][i]
 			llm_res = all_results["LLM Simulator"][i]
-			votes = [zkp_res.predicted_label == "adversarial", re_res.predicted_label == "adversarial", llm_res.predicted_label == "adversarial"]
-			if "Semantic Classifier" in all_results:
-				sc_res = all_results["Semantic Classifier"][i]
-				votes.append(sc_res.predicted_label == "adversarial")
-			adversarial_votes = sum(votes)
-			predicted = "adversarial" if adversarial_votes >= 1 else "safe"
-			confs = [zkp_res.confidence, re_res.confidence, llm_res.confidence]
-			if "Semantic Classifier" in all_results:
-				confs.append(all_results["Semantic Classifier"][i].confidence)
-			confidence = max(confs)
-			all_results["Ensemble"].append(DetectionResult(prompt, true_label, predicted, confidence, max(zkp_res.detection_time, re_res.detection_time, llm_res.detection_time), "Ensemble", {"votes": adversarial_votes}))
+			sf_res = all_results["Semantic Fast"][i]
+			is_adv = (zkp_res.predicted_label == "adversarial") or (sf_res.predicted_label == "adversarial" and (re_res.predicted_label == "adversarial" or llm_res.predicted_label == "adversarial"))
+			predicted = "adversarial" if is_adv else "safe"
+			confidence = max(zkp_res.confidence, re_res.confidence, llm_res.confidence, sf_res.confidence)
+			all_results["Ensemble"].append(DetectionResult(prompt, true_label, predicted, confidence, max(zkp_res.detection_time, re_res.detection_time, llm_res.detection_time), "Ensemble", {"rule": "zkp OR (sf AND (regex OR llm))"}))
 		
 		metrics = self.print_results(all_results)
 		
