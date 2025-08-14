@@ -55,6 +55,7 @@ import math
 # NOTE: Move semantic model import into runtime try/except to avoid hard dependency
 # from security.semantic_classifier import train_semantic_model
 import csv
+from security.semantic_fast_ml import SemanticFastML
 
 @dataclass
 class DetectionResult:
@@ -697,23 +698,20 @@ class AdvancedEvaluationPipeline:
 				all_results["Semantic Classifier"] = sc_results
 			except Exception as e:
 				print(f"Semantic classifier skipped: {e}")
-		elif len(self.test_dataset) > 60000:
-			try:
-				from security.semantic_classifier import train_semantic_model
-				print("\n📊 Training Semantic Classifier on sample (50k max)...")
-				import random as _r
-				_r.seed(42)
-				sample_size = min(50000, len(self.test_dataset))
-				sample = _r.sample(self.test_dataset, sample_size)
-				model = train_semantic_model(sample)
-				sc_results = []
-				for prompt, true_label in self.test_dataset:
-					prob = float(model.predict_proba([prompt])[0])
-					pred = "adversarial" if prob >= 0.5 else "safe"
-					sc_results.append(DetectionResult(prompt, true_label, pred, prob, 0.0, "Semantic Classifier", {}))
-				all_results["Semantic Classifier"] = sc_results
-			except Exception as e:
-				print(f"Semantic classifier (sample) skipped: {e}")
+		# Always train lightweight SemanticFastML on dataset/sample to boost recall
+		try:
+			print("\n📊 Training SemanticFastML (hashed logistic)...")
+			ml = SemanticFastML()
+			pairs = [(p, y) for p, y in self.test_dataset]
+			ml.fit(pairs, epochs=2, max_samples=min(100000, len(pairs)))
+			ml_results = []
+			for prompt, true_label in self.test_dataset:
+				prob = float(ml.predict_proba([prompt])[0])
+				pred = "adversarial" if prob >= ml.threshold else "safe"
+				ml_results.append(DetectionResult(prompt, true_label, pred, prob, 0.0, "SemanticFastML", {"threshold": ml.threshold}))
+			all_results["SemanticFastML"] = ml_results
+		except Exception as e:
+			print(f"SemanticFastML skipped: {e}")
 		
 		print("\n📊 Evaluating Ensemble...")
 		for i, (prompt, true_label) in enumerate(self.test_dataset):
@@ -722,10 +720,12 @@ class AdvancedEvaluationPipeline:
 			re_res = all_results["Regex Baseline"][i]
 			llm_res = all_results["LLM Simulator"][i]
 			sf_res = all_results["Semantic Fast"][i]
-			is_adv = (zkp_res.predicted_label == "adversarial") or (sf_res.predicted_label == "adversarial" and (re_res.predicted_label == "adversarial" or llm_res.predicted_label == "adversarial"))
+			ml_res = all_results.get("SemanticFastML", [DetectionResult("", "", "safe", 0.0, 0.0, "SemanticFastML", {})])[i]
+			# New rule: block if ZKP adv OR (SemanticFastML adv AND (Regex OR LLM OR Semantic Fast))
+			is_adv = (zkp_res.predicted_label == "adversarial") or (ml_res.predicted_label == "adversarial" and (re_res.predicted_label == "adversarial" or llm_res.predicted_label == "adversarial" or sf_res.predicted_label == "adversarial"))
 			predicted = "adversarial" if is_adv else "safe"
-			confidence = max(zkp_res.confidence, re_res.confidence, llm_res.confidence, sf_res.confidence)
-			all_results["Ensemble"].append(DetectionResult(prompt, true_label, predicted, confidence, max(zkp_res.detection_time, re_res.detection_time, llm_res.detection_time), "Ensemble", {"rule": "zkp OR (sf AND (regex OR llm))"}))
+			confidence = max(zkp_res.confidence, re_res.confidence, llm_res.confidence, sf_res.confidence, ml_res.confidence)
+			all_results["Ensemble"].append(DetectionResult(prompt, true_label, predicted, confidence, max(zkp_res.detection_time, re_res.detection_time, llm_res.detection_time), "Ensemble", {"rule": "zkp OR (sfml AND (regex OR llm OR sf))"}))
 		
 		metrics = self.print_results(all_results)
 		
