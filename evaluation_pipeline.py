@@ -341,7 +341,11 @@ class AdvancedEvaluationPipeline:
 		# Cap score
 		score = max(0.0, min(1.0, score))
 		# Slight margin to reduce FPs on benign
-		threshold = 0.55
+		import os as _os
+		try:
+			threshold = float(_os.getenv("SEM_FAST_THRESHOLD", "0.55"))
+		except Exception:
+			threshold = 0.55
 		pred = "adversarial" if score >= threshold else "safe"
 		detection_time = time.time() - start_time
 		return DetectionResult(prompt, "", pred, score, detection_time, "Semantic Fast", {"threshold": threshold, "score": score})
