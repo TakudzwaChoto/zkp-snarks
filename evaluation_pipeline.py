@@ -624,8 +624,8 @@ class AdvancedEvaluationPipeline:
 			res.true_label = true_label
 			all_results["LLM Simulator"].append(res)
 		
-		# Optional: Train/evaluate semantic classifier on large datasets
-		if len(self.test_dataset) >= 5000:
+		# Train when dataset is reasonably large but not massive to avoid memory spikes
+		if 2000 <= len(self.test_dataset) <= 60000:
 			try:
 				from security.semantic_classifier import train_semantic_model
 				print("\n📊 Training Semantic Classifier (TF-IDF + Logistic)...")
@@ -646,9 +646,16 @@ class AdvancedEvaluationPipeline:
 			zkp_res = all_results["ZKP Framework"][i]
 			re_res = all_results["Regex Baseline"][i]
 			llm_res = all_results["LLM Simulator"][i]
-			adversarial_votes = sum([zkp_res.predicted_label == "adversarial", re_res.predicted_label == "adversarial", llm_res.predicted_label == "adversarial"])
+			votes = [zkp_res.predicted_label == "adversarial", re_res.predicted_label == "adversarial", llm_res.predicted_label == "adversarial"]
+			if "Semantic Classifier" in all_results:
+				sc_res = all_results["Semantic Classifier"][i]
+				votes.append(sc_res.predicted_label == "adversarial")
+			adversarial_votes = sum(votes)
 			predicted = "adversarial" if adversarial_votes >= 1 else "safe"
-			confidence = max(zkp_res.confidence, re_res.confidence, llm_res.confidence)
+			confs = [zkp_res.confidence, re_res.confidence, llm_res.confidence]
+			if "Semantic Classifier" in all_results:
+				confs.append(all_results["Semantic Classifier"][i].confidence)
+			confidence = max(confs)
 			all_results["Ensemble"].append(DetectionResult(prompt, true_label, predicted, confidence, max(zkp_res.detection_time, re_res.detection_time, llm_res.detection_time), "Ensemble", {"votes": adversarial_votes}))
 		
 		metrics = self.print_results(all_results)
