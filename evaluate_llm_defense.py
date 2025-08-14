@@ -15,30 +15,52 @@ FLASK_URL_ADV = None  # e.g., "http://localhost:5001/"
 
 # --- ARGUMENT PARSING ---
 parser = argparse.ArgumentParser(description="Evaluate LLM Defense Layers")
-parser.add_argument('--dataset', type=str, default='advglue_test.json', help='Path to test set (JSON or CSV)')
-parser.add_argument('--url', type=str, default='http://localhost:5000/', help='Flask app URL')
+parser.add_argument('--dataset', type=str, default='advglue_test.json', help='Path to test set (JSON or CSV). Use value "synth" to generate on the fly')
+parser.add_argument('--url', type=str, default='http://localhost:5000/', help='Flask app base URL')
 parser.add_argument('--url_adv', type=str, default=None, help='Adversarially trained model URL (optional)')
+parser.add_argument('--api', action='store_true', help='Use JSON API /api/check instead of HTML scraping')
+parser.add_argument('--self_check', action='store_true', help='Enable LLM self-check in API calls (slower)')
+parser.add_argument('--strict', action='store_true', help='Use strict mode logic in API calls')
+parser.add_argument('--benign', type=int, default=5000, help='Number of benign samples when --dataset synth')
+parser.add_argument('--adversarial', type=int, default=5000, help='Number of adversarial samples when --dataset synth')
+parser.add_argument('--seed', type=int, default=42, help='Random seed for synthetic generation')
 args = parser.parse_args()
 
 TEST_SET_PATH = args.dataset
-FLASK_URL = args.url
+FLASK_URL = args.url.rstrip('/') + '/'
 FLASK_URL_ADV = args.url_adv
 
-# --- LOAD TEST SET ---
-if TEST_SET_PATH.endswith('.json'):
-    df = pd.read_json(TEST_SET_PATH)
-elif TEST_SET_PATH.endswith('.csv'):
-    df = pd.read_csv(TEST_SET_PATH)
+# --- LOAD/GENERATE TEST SET ---
+if TEST_SET_PATH.lower() == 'synth':
+    from data.generate_synthetic_dataset import sample_benign, sample_adversarial
+    import random
+    random.seed(args.seed)
+    benign = list(sample_benign(args.benign))
+    adversarial = list(sample_adversarial(args.adversarial))
+    prompts = [(p, 'benign') for p in benign] + [(p, 'adversarial') for p in adversarial]
+    import random as _r
+    _r.shuffle(prompts)
+    df = pd.DataFrame(prompts, columns=['prompt','label'])
 else:
-    raise ValueError('Dataset must be .json or .csv')
-if not set(['prompt', 'label']).issubset(df.columns):
-    raise ValueError('Dataset must have columns: prompt, label')
+    if TEST_SET_PATH.endswith('.json'):
+        df = pd.read_json(TEST_SET_PATH)
+    elif TEST_SET_PATH.endswith('.csv'):
+        df = pd.read_csv(TEST_SET_PATH)
+    else:
+        raise ValueError('Dataset must be .json or .csv or "synth"')
+    if not set(['prompt', 'label']).issubset(df.columns):
+        raise ValueError('Dataset must have columns: prompt, label')
 
 results = []
 
-def test_prompt(prompt, url=FLASK_URL):
-    # Send prompt to Flask app
-    resp = requests.post(url, data={"prompt": prompt}, allow_redirects=True)
+session = requests.Session()
+
+API_ENDPOINT = FLASK_URL + 'api/check'
+
+
+def test_prompt_html(prompt, url=FLASK_URL):
+    # Send prompt to Flask app root (HTML form flow). Requires valid session/CSRF in templates.
+    resp = session.post(url, data={"prompt": prompt}, allow_redirects=True)
     html = resp.text
 
     # Multi-layer trace: look for audit card and flash messages in the HTML
@@ -47,16 +69,6 @@ def test_prompt(prompt, url=FLASK_URL):
     output_block = "Output filter detected" in html
     self_checker_block = "detected as possible prompt injection" in html
 
-    # Extract self-checker status and explanation
-    audit_start = html.find("LLM Self-Checker Audit")
-    status = ""
-    explanation = ""
-    if audit_start != -1:
-        status_start = html.find("audit-status", audit_start)
-        status = html[status_start:status_start+50].split(">")[1].split("<")[0] if status_start != -1 else ""
-        expl_start = html.find("Self-Checker Explanation:", audit_start)
-        if expl_start != -1:
-            explanation = html[expl_start+len("Self-Checker Explanation:"):].split("</div>")[0].strip()
     # Determine which layer blocked
     blocked_by = "none"
     if sanitization_block:
@@ -72,20 +84,32 @@ def test_prompt(prompt, url=FLASK_URL):
         "sanitization_block": sanitization_block,
         "self_checker_block": self_checker_block,
         "output_block": output_block,
-        "self_checker_status": status,
-        "self_checker_explanation": explanation,
         "blocked_by": blocked_by,
-        "html": html
+    }
+
+
+def test_prompt_api(prompt, url=API_ENDPOINT, strict=False, self_check=False):
+    payload = {"prompt": prompt, "strict": strict, "self_check": self_check}
+    resp = session.post(url, json=payload)
+    data = resp.json() if resp.headers.get('content-type','').startswith('application/json') else {}
+    blocked = bool(data.get('blocked', False))
+    bl = data.get('blocked_layers') or {}
+    return {
+        "blocked": blocked,
+        "sanitization_block": bool(bl.get('sanitizer')),
+        "self_checker_block": (bl.get('llm_self_check') is True),
+        "output_block": False,
+        "blocked_by": data.get('blocked_by', 'none')
     }
 
 # --- MAIN EVALUATION LOOP ---
 for row in df.itertuples():
     prompt = row.prompt
     label = row.label
-    # Test with current model
-    res = test_prompt(prompt, FLASK_URL)
-    # If you have an adversarially trained model, test with that too
-    res_adv = test_prompt(prompt, FLASK_URL_ADV) if FLASK_URL_ADV else None
+    if args.api:
+        res = test_prompt_api(prompt, API_ENDPOINT, strict=args.strict, self_check=args.self_check)
+    else:
+        res = test_prompt_html(prompt, FLASK_URL)
     results.append({
         "prompt": prompt,
         "label": label,
@@ -93,15 +117,9 @@ for row in df.itertuples():
         "sanitization_block": res["sanitization_block"],
         "self_checker_block": res["self_checker_block"],
         "output_block": res["output_block"],
-        "self_checker_status": res["self_checker_status"],
-        "self_checker_explanation": res["self_checker_explanation"],
         "blocked_by": res["blocked_by"],
-        "blocked_adv": res_adv["blocked"] if res_adv else None,
-        "self_checker_status_adv": res_adv["self_checker_status"] if res_adv else None,
-        "self_checker_explanation_adv": res_adv["self_checker_explanation"] if res_adv else None,
-        "blocked_by_adv": res_adv["blocked_by"] if res_adv else None,
     })
-    time.sleep(0.5)  # Avoid rate limiting
+    time.sleep(0.05 if args.api else 0.5)  # faster when using API
 
 results_df = pd.DataFrame(results)
 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -137,6 +155,6 @@ print(results_df.groupby(['label','blocked_by']).size().unstack(fill_value=0))
 
 # --- EXAMPLES ---
 print("\n--- Example False Positives ---")
-print(results_df[(results_df.label == "benign") & (results_df.blocked)].head(5)[["prompt", "self_checker_explanation", "blocked_by"]])
+print(results_df[(results_df.label == "benign") & (results_df.blocked)].head(5)[["prompt", "blocked_by"]])
 print("\n--- Example False Negatives ---")
-print(results_df[(results_df.label == "adversarial") & (~results_df.blocked)].head(5)[["prompt", "self_checker_explanation", "blocked_by"]]) 
+print(results_df[(results_df.label == "adversarial") & (~results_df.blocked)].head(5)[["prompt", "blocked_by"]]) 
