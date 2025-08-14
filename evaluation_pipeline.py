@@ -639,6 +639,23 @@ class AdvancedEvaluationPipeline:
 				all_results["Semantic Classifier"] = sc_results
 			except Exception as e:
 				print(f"Semantic classifier skipped: {e}")
+		elif len(self.test_dataset) > 60000:
+			try:
+				from security.semantic_classifier import train_semantic_model
+				print("\n📊 Training Semantic Classifier on sample (50k max)...")
+				import random as _r
+				_r.seed(42)
+				sample_size = min(50000, len(self.test_dataset))
+				sample = _r.sample(self.test_dataset, sample_size)
+				model = train_semantic_model(sample)
+				sc_results = []
+				for prompt, true_label in self.test_dataset:
+					prob = float(model.predict_proba([prompt])[0])
+					pred = "adversarial" if prob >= 0.5 else "safe"
+					sc_results.append(DetectionResult(prompt, true_label, pred, prob, 0.0, "Semantic Classifier", {}))
+				all_results["Semantic Classifier"] = sc_results
+			except Exception as e:
+				print(f"Semantic classifier (sample) skipped: {e}")
 		
 		print("\n📊 Evaluating Ensemble...")
 		for i, (prompt, true_label) in enumerate(self.test_dataset):
