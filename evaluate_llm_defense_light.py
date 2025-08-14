@@ -9,6 +9,7 @@ import requests
 from typing import List, Dict, Tuple
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 try:
     from data.generate_synthetic_dataset import sample_benign, sample_adversarial
@@ -42,37 +43,48 @@ def generate_dataset(n_benign: int, n_adv: int, seed: int) -> List[Tuple[str, st
     return dataset
 
 
-def evaluate_dataset(dataset: List[Tuple[str, str]], url: str, strict: bool, self_check: bool, rate_delay_s: float = 0.0) -> List[Dict]:
-    session = requests.Session()
+def _eval_one(api: str, item: Tuple[str, str], strict: bool, self_check: bool, timeout_s: int = 60) -> Dict:
+    prompt, label = item
+    try:
+        resp = requests.post(api, json={"prompt": prompt, "strict": strict, "self_check": self_check}, timeout=timeout_s)
+        data = resp.json() if resp.headers.get('content-type','').startswith('application/json') else {}
+        return {
+            'prompt': prompt,
+            'label': label,
+            'blocked': bool(data.get('blocked', False)),
+            'blocked_by': data.get('blocked_by', 'none'),
+            'sanitizer': bool((data.get('blocked_layers') or {}).get('sanitizer', False)),
+            'llm_self_check': (data.get('blocked_layers') or {}).get('llm_self_check'),
+            'zkp_valid': bool((data.get('blocked_layers') or {}).get('zkp_valid', False)),
+            'snark_valid': bool((data.get('blocked_layers') or {}).get('snark_valid', False)),
+        }
+    except Exception as e:
+        return {
+            'prompt': prompt,
+            'label': label,
+            'blocked': False,
+            'blocked_by': f'error:{e.__class__.__name__}',
+            'sanitizer': False,
+            'llm_self_check': None,
+            'zkp_valid': True,
+            'snark_valid': True,
+        }
+
+
+def evaluate_dataset(dataset: List[Tuple[str, str]], url: str, strict: bool, self_check: bool, rate_delay_s: float = 0.0, workers: int = 16) -> List[Dict]:
     api = url.rstrip('/') + '/api/check'
+    if workers <= 1:
+        results = []
+        for item in dataset:
+            results.append(_eval_one(api, item, strict, self_check))
+            if rate_delay_s:
+                time.sleep(rate_delay_s)
+        return results
     results: List[Dict] = []
-    for prompt, label in dataset:
-        try:
-            resp = session.post(api, json={"prompt": prompt, "strict": strict, "self_check": self_check}, timeout=60)
-            data = resp.json() if resp.headers.get('content-type','').startswith('application/json') else {}
-            results.append({
-                'prompt': prompt,
-                'label': label,
-                'blocked': bool(data.get('blocked', False)),
-                'blocked_by': data.get('blocked_by', 'none'),
-                'sanitizer': bool((data.get('blocked_layers') or {}).get('sanitizer', False)),
-                'llm_self_check': (data.get('blocked_layers') or {}).get('llm_self_check'),
-                'zkp_valid': bool((data.get('blocked_layers') or {}).get('zkp_valid', False)),
-                'snark_valid': bool((data.get('blocked_layers') or {}).get('snark_valid', False)),
-            })
-        except Exception as e:
-            results.append({
-                'prompt': prompt,
-                'label': label,
-                'blocked': False,
-                'blocked_by': f'error:{e.__class__.__name__}',
-                'sanitizer': False,
-                'llm_self_check': None,
-                'zkp_valid': True,
-                'snark_valid': True,
-            })
-        if rate_delay_s:
-            time.sleep(rate_delay_s)
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        futures = [ex.submit(_eval_one, api, item, strict, self_check) for item in dataset]
+        for fut in as_completed(futures):
+            results.append(fut.result())
     return results
 
 
@@ -131,6 +143,7 @@ def main():
     ap.add_argument('--strict', action='store_true', help='Strict mode logic in API')
     ap.add_argument('--self_check', action='store_true', help='Enable self-check in API')
     ap.add_argument('--save', type=str, default='', help='Optional CSV output path')
+    ap.add_argument('--workers', type=int, default=16, help='Number of concurrent workers for evaluation')
     args = ap.parse_args()
 
     if args.dataset:
@@ -138,7 +151,7 @@ def main():
     else:
         ds = generate_dataset(args.benign, args.adversarial, args.seed)
 
-    results = evaluate_dataset(ds, args.url, strict=args.strict, self_check=args.self_check)
+    results = evaluate_dataset(ds, args.url, strict=args.strict, self_check=args.self_check, workers=args.workers)
     print_report(results)
     ts = datetime.now().strftime('%Y%m%d_%H%M%S')
     out = args.save or f"llm_defense_eval_results_light_{ts}.csv"
