@@ -324,8 +324,8 @@ class AdvancedEvaluationPipeline:
 		llm_score = 1 if llm_result.predicted_label == "adversarial" else 0
 		
 		ensemble_score = (zkp_score * weights["ZKP"] + 
-						rexgex_score * weights["Regex"] + 
-						llm_score * weights["LLM"])
+			regex_score * weights["Regex"] + 
+			llm_score * weights["LLM"])
 		
 		detection_time = time.time() - start_time
 		
