@@ -13,6 +13,9 @@ from flask_limiter.util import get_remote_address
 import re
 from functools import wraps
 from datetime import datetime
+from flask import jsonify
+from time import time as _now
+from flask_wtf.csrf import generate_csrf
 
 load_dotenv()
 
@@ -32,20 +35,25 @@ llm_config = {
        "base_url": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
 }
 
-# --- Agent Setup ---
-assistant = AssistantAgent(
-    name="assistant",
-    system_message="""You are a helpful AI assistant. 
+# --- Agent Setup (optional: disable by default to avoid OpenAI client dependency) ---
+assistant = None
+user_proxy = None
+if os.getenv("ENABLE_AUTOGEN", "false").lower() in ("1", "true", "yes"):
+    try:
+        assistant = AssistantAgent(
+            name="assistant",
+            system_message="""You are a helpful AI assistant. 
     Respond safely and appropriately to user questions.
     Keep responses concise and helpful.""",
-    llm_config=llm_config
-)
-
-user_proxy = UserProxyAgent(
-    name="user_proxy",
-    human_input_mode="NEVER",
-    code_execution_config=False,
-)
+            llm_config=llm_config
+        )
+        user_proxy = UserProxyAgent(
+            name="user_proxy",
+            human_input_mode="NEVER",
+            code_execution_config=False,
+        )
+    except Exception as e:
+        print(f"Autogen disabled due to init error: {e}")
 
 def get_llm_response(prompt: str) -> str:
     try:
@@ -72,11 +80,15 @@ def get_llm_response(prompt: str) -> str:
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", pysecrets.token_hex(32))
 app.config.update(
-    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_SECURE=os.getenv("SESSION_COOKIE_SECURE", "false").lower() in ("1","true","yes"),
     SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SAMESITE=os.getenv("SESSION_COOKIE_SAMESITE", "Lax"),
 )
 csrf = CSRFProtect(app)
+
+@app.context_processor
+def inject_csrf_token():
+    return dict(csrf_token=generate_csrf)
 
 # Set up rate limiting
 limiter = Limiter(
@@ -491,6 +503,83 @@ def test_zkp():
         })
     
     return render_template("zkp_test.html", results=results)
+
+@app.route("/api/check", methods=["POST"])
+@csrf.exempt
+def api_check():
+    # Restrict to localhost for safety
+    if request.remote_addr not in ("127.0.0.1", "::1"):
+        return jsonify({"error": "forbidden"}), 403
+
+    data = request.get_json(silent=True) or {}
+    prompt = data.get("prompt", "")
+    strict = bool(data.get("strict", False))
+    do_self_check = bool(data.get("self_check", False))
+
+    timings = {}
+
+    t0 = _now()
+    safety_rules = ["no_personal_info", "no_harmful_content", "no_prompt_injection"]
+    zkp_proof = zkp_security.generate_prompt_safety_proof(prompt, safety_rules)
+    zkp_valid = zkp_security.verify_prompt_safety_proof(zkp_proof, safety_rules)
+    timings["zkp"] = round((_now() - t0) * 1000, 2)
+
+    t1 = _now()
+    snark_obj = zkp_security.generate_snark_policy_proof(normalize_prompt(prompt))
+    snark_valid = zkp_security.verify_snark_policy_proof(snark_obj)
+    timings["snark"] = round((_now() - t1) * 1000, 2)
+
+    t2 = _now()
+    sanitized_prompt, triggered = sanitize_prompt(prompt)
+    timings["sanitize"] = round((_now() - t2) * 1000, 2)
+
+    llm_ok = True
+    if do_self_check:
+        t3 = _now()
+        llm_ok = llm_self_check(sanitized_prompt)
+        timings["llm_self_check"] = round((_now() - t3) * 1000, 2)
+
+    blocked_layers = {
+        "sanitizer": bool(triggered),
+        "llm_self_check": (not llm_ok) if do_self_check else None,
+        "zkp_valid": bool(zkp_valid),
+        "snark_valid": bool(snark_valid)
+    }
+
+    # Determine blocked status and by which layer
+    blocked = False
+    blocked_by = None
+    if strict:
+        if triggered:
+            blocked, blocked_by = True, "sanitizer"
+        elif do_self_check and not llm_ok:
+            blocked, blocked_by = True, "self_checker"
+        elif not zkp_valid:
+            blocked, blocked_by = True, "zkp"
+        elif not snark_valid:
+            blocked, blocked_by = True, "snark"
+    else:
+        if triggered:
+            blocked, blocked_by = True, "sanitizer"
+        elif not zkp_valid:
+            blocked, blocked_by = True, "zkp"
+        elif not snark_valid:
+            blocked, blocked_by = True, "snark"
+        elif do_self_check and not llm_ok:
+            blocked, blocked_by = True, "self_checker"
+
+    result = {
+        "prompt": prompt,
+        "sanitized_prompt": sanitized_prompt,
+        "blocked": blocked,
+        "blocked_by": blocked_by or "none",
+        "blocked_layers": blocked_layers,
+        "zkp_safety_score": zkp_proof.metadata.get("safety_score", 0),
+        "snark_score": (snark_obj or {}).get("publicSignals", {}).get("score"),
+        "normalizer_version": NORMALIZER_VERSION,
+        "timings_ms": timings,
+    }
+    return jsonify(result), 200
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)), debug=os.getenv("FLASK_DEBUG","false").lower()=="true")
