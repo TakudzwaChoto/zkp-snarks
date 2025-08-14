@@ -334,7 +334,8 @@ def index():
         # Strict mode: block if sanitization, self-checker, or ZKP validation fails
         if strict_mode:
             t3 = datetime.now(); llm_ok = llm_self_check(prompt); t_llm = (datetime.now()-t3).total_seconds()
-            if triggered or not llm_ok or not zkp_valid or not snark_valid:
+            # Block only on failing validators; sanitizer trigger alone does not block
+            if (not zkp_valid) or (not snark_valid) or (not llm_ok):
                 user_msg["status"] = "blocked"
                 session["chat_history"].append(user_msg)
                 session.modified = True
@@ -361,11 +362,12 @@ def index():
                     'explanation': session.get('self_check_reason', '')
                 }
                 session['audit_info'] = audit_info
-                flash("Prompt blocked: Strict mode (sanitization, self-checker, ZKP or SNARK validation).")
+                flash("Prompt blocked: validator failure (self-checker/ZKP/SNARK).")
                 return redirect(url_for("index"))
         else:
-            if triggered or not zkp_valid or not snark_valid:
-                reason = 'Sanitization' if triggered else ('ZKP validation' if not zkp_valid else 'SNARK validation')
+            # Non-strict: sanitizer does NOT block by itself; validators must fail
+            if (not zkp_valid) or (not snark_valid):
+                reason = 'ZKP validation' if not zkp_valid else 'SNARK validation'
                 audit_info = {
                     'prompt': prompt,
                     'status': 'blocked (security layer)',
