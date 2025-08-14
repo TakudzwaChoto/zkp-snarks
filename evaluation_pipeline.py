@@ -254,7 +254,13 @@ class AdvancedEvaluationPipeline:
 		start_time = time.time()
 		
 		# Simulate LLM processing time
-		time.sleep(0.1)
+		delay_ms = 0
+		try:
+			delay_ms = int(os.getenv("LLM_SIMULATOR_DELAY_MS", "100"))
+		except Exception:
+			delay_ms = 100
+		if delay_ms > 0:
+			time.sleep(delay_ms / 1000.0)
 		
 		# Complex pattern analysis
 		risk_factors = {
