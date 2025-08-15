@@ -8,15 +8,30 @@ import re
 import random
 import time
 import json
-import pandas as pd
-import numpy as np
+try:
+    import pandas as pd  # type: ignore
+except Exception:
+    pd = None  # Fallback path
+try:
+    import numpy as np  # type: ignore
+except Exception:
+    np = None
 from typing import Dict, List, Tuple, Any
 from typing import Optional
 from dataclasses import dataclass
-from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score, confusion_matrix, classification_report
-from sklearn.metrics import roc_curve, auc, precision_recall_curve
-import matplotlib.pyplot as plt
-import seaborn as sns
+try:
+    from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score, confusion_matrix, classification_report
+    from sklearn.metrics import roc_curve, auc, precision_recall_curve
+except Exception:
+    precision_score = recall_score = f1_score = accuracy_score = None
+    confusion_matrix = roc_curve = auc = precision_recall_curve = None
+    classification_report = None
+try:
+    import matplotlib.pyplot as plt  # type: ignore
+    import seaborn as sns  # type: ignore
+except Exception:
+    plt = None
+    sns = None
 from datetime import datetime
 import requests
 from zkp_security import ZKPSecurity, ZKProof
@@ -120,18 +135,49 @@ class AdvancedEvaluationPipeline:
     
     def _load_external_dataset(self, path: str) -> List[Tuple[str, str]]:
         """Load dataset from JSON/CSV with columns prompt,label"""
-        import pandas as pd
+        import os
         if not os.path.exists(path):
             raise FileNotFoundError(f"Dataset not found: {path}")
         if path.endswith('.json'):
-            df = pd.read_json(path)
+            if pd is None:
+                with open(path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                return [(row['prompt'], row['label']) for row in data]
+            df = pd.read_json(path)  # type: ignore
         elif path.endswith('.csv'):
-            df = pd.read_csv(path)
+            if pd is None:
+                records: List[Tuple[str, str]] = []
+                with open(path, 'r', encoding='utf-8') as f:
+                    header = f.readline().strip().split(',')
+                    idx_p = header.index('prompt')
+                    idx_l = header.index('label')
+                    for line in f:
+                        # naive CSV parsing; prompts may be quoted
+                        if line.startswith('"'):
+                            # read until next ", then comma, then label
+                            pass
+                        parts = []
+                        cur = ''
+                        q = False
+                        for ch in line:
+                            if ch == '"':
+                                q = not q
+                                continue
+                            if ch == ',' and not q:
+                                parts.append(cur)
+                                cur = ''
+                            else:
+                                cur += ch
+                        if cur:
+                            parts.append(cur.rstrip('\n'))
+                        prompt = parts[idx_p].strip('"')
+                        label = parts[idx_l]
+                        records.append((prompt, label))
+                return records
+            df = pd.read_csv(path)  # type: ignore
         else:
             raise ValueError("Dataset must be .json or .csv")
-        if not set(['prompt', 'label']).issubset(df.columns):
-            raise ValueError("Dataset must have columns: prompt, label")
-        return [(str(r.prompt), str(r.label)) for r in df.itertuples()]
+        return list(zip(df['prompt'].tolist(), df['label'].tolist()))
     
     def zkp_detection(self, prompt: str) -> DetectionResult:
         """Use actual ZKP framework for detection"""
@@ -317,19 +363,38 @@ class AdvancedEvaluationPipeline:
         confidences = [r.confidence for r in results]
         
         # Basic metrics
-        precision = precision_score(y_true, y_pred, zero_division=0)
-        recall = recall_score(y_true, y_pred, zero_division=0)
-        f1 = f1_score(y_true, y_pred, zero_division=0)
-        accuracy = accuracy_score(y_true, y_pred)
-        
+        if precision_score is None:
+            # lightweight metrics
+            tp = sum(1 for yt, yp in zip(y_true, y_pred) if yt == 1 and yp == 1)
+            fp = sum(1 for yt, yp in zip(y_true, y_pred) if yt == 0 and yp == 1)
+            fn = sum(1 for yt, yp in zip(y_true, y_pred) if yt == 1 and yp == 0)
+            tn = sum(1 for yt, yp in zip(y_true, y_pred) if yt == 0 and yp == 0)
+            precision = tp / (tp + fp) if (tp + fp) else 0.0
+            recall = tp / (tp + fn) if (tp + fn) else 0.0
+            f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
+            accuracy = (tp + tn) / max(1, len(y_true))
+        else:
+            precision = precision_score(y_true, y_pred, zero_division=0)
+            recall = recall_score(y_true, y_pred, zero_division=0)
+            f1 = f1_score(y_true, y_pred, zero_division=0)
+            accuracy = accuracy_score(y_true, y_pred)
         # Advanced metrics
-        tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
+        if confusion_matrix is None:
+            tn = sum(1 for yt, yp in zip(y_true, y_pred) if yt == 0 and yp == 0)
+            fp = sum(1 for yt, yp in zip(y_true, y_pred) if yt == 0 and yp == 1)
+            fn = sum(1 for yt, yp in zip(y_true, y_pred) if yt == 1 and yp == 0)
+            tp = sum(1 for yt, yp in zip(y_true, y_pred) if yt == 1 and yp == 1)
+        else:
+            tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
         specificity = tn / (tn + fp) if (tn + fp) > 0 else 0
         sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0
         
         # Performance metrics
-        avg_detection_time = np.mean([r.detection_time for r in results])
-        
+        # Average detection time
+        if np is None:
+            avg_detection_time = sum(r.detection_time for r in results) / max(1, len(results))
+        else:
+            avg_detection_time = np.mean([r.detection_time for r in results])
         return {
             "precision": precision,
             "recall": recall,
@@ -393,105 +458,126 @@ class AdvancedEvaluationPipeline:
         """Create comprehensive visualizations"""
         print("\n📊 Generating visualizations...")
         
-        # Set up the plotting style
-        plt.style.use('seaborn-v0_8')
-        fig, axes = plt.subplots(2, 2, figsize=(15, 12))
-        fig.suptitle('ZKP-Based LLM Security: Comprehensive Evaluation Results', fontsize=16, fontweight='bold')
-        
-        # 1. Metrics comparison
-        methods = list(metrics.keys())
-        precision = [metrics[m]['precision'] for m in methods]
-        recall = [metrics[m]['recall'] for m in methods]
-        f1 = [metrics[m]['f1'] for m in methods]
-        accuracy = [metrics[m]['accuracy'] for m in methods]
-        
-        x = np.arange(len(methods))
-        width = 0.2
-        
-        axes[0, 0].bar(x - width*1.5, precision, width, label='Precision', alpha=0.8)
-        axes[0, 0].bar(x - width*0.5, recall, width, label='Recall', alpha=0.8)
-        axes[0, 0].bar(x + width*0.5, f1, width, label='F1', alpha=0.8)
-        axes[0, 0].bar(x + width*1.5, accuracy, width, label='Accuracy', alpha=0.8)
-        
-        axes[0, 0].set_xlabel('Detection Methods')
-        axes[0, 0].set_ylabel('Score')
-        axes[0, 0].set_title('Performance Metrics Comparison')
-        axes[0, 0].set_xticks(x)
-        axes[0, 0].set_xticklabels(methods, rotation=45)
-        axes[0, 0].legend()
-        axes[0, 0].grid(True, alpha=0.3)
-        
-        # 2. Detection time comparison
-        detection_times = [metrics[m]['avg_detection_time']*1000 for m in methods]
-        colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4']
-        
-        bars = axes[0, 1].bar(methods, detection_times, color=colors, alpha=0.8)
-        axes[0, 1].set_xlabel('Detection Methods')
-        axes[0, 1].set_ylabel('Average Detection Time (ms)')
-        axes[0, 1].set_title('Performance Comparison')
-        axes[0, 1].tick_params(axis='x', rotation=45)
-        
-        # Add value labels on bars
-        for bar, time in zip(bars, detection_times):
-            axes[0, 1].text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.5,
-                           f'{time:.1f}ms', ha='center', va='bottom')
-        
-        # 3. Confusion matrix for ZKP Framework
-        zkp_results = all_results["ZKP Framework"]
-        y_true = [1 if r.true_label == "adversarial" else 0 for r in zkp_results]
-        y_pred = [1 if r.predicted_label == "adversarial" else 0 for r in zkp_results]
-        
-        cm = confusion_matrix(y_true, y_pred)
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=axes[1, 0])
-        axes[1, 0].set_title('ZKP Framework: Confusion Matrix')
-        axes[1, 0].set_xlabel('Predicted')
-        axes[1, 0].set_ylabel('Actual')
-        
-        # 4. Confidence distribution
-        zkp_confidences = [r.confidence for r in zkp_results]
-        safe_confidences = [r.confidence for r in zkp_results if r.true_label == "safe"]
-        adv_confidences = [r.confidence for r in zkp_results if r.true_label == "adversarial"]
-        
-        axes[1, 1].hist(safe_confidences, alpha=0.7, label='Safe Prompts', bins=10, color='green')
-        axes[1, 1].hist(adv_confidences, alpha=0.7, label='Adversarial Prompts', bins=10, color='red')
-        axes[1, 1].set_xlabel('Safety Score')
-        axes[1, 1].set_ylabel('Frequency')
-        axes[1, 1].set_title('ZKP Safety Score Distribution')
-        axes[1, 1].legend()
-        axes[1, 1].grid(True, alpha=0.3)
-        
-        # TODO: add true PR/ROC per method when positive probabilities available
-        return fig
+        skip_plots = os.getenv('SKIP_PLOTS', 'true').lower() == 'true'
+        if not skip_plots and plt is not None and sns is not None:
+            # Set up the plotting style
+            plt.style.use('seaborn-v0_8')
+            fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+            fig.suptitle('ZKP-Based LLM Security: Comprehensive Evaluation Results', fontsize=16, fontweight='bold')
+            
+            # 1. Metrics comparison
+            methods = list(metrics.keys())
+            precision = [metrics[m]['precision'] for m in methods]
+            recall = [metrics[m]['recall'] for m in methods]
+            f1 = [metrics[m]['f1'] for m in methods]
+            accuracy = [metrics[m]['accuracy'] for m in methods]
+            
+            x = np.arange(len(methods))
+            width = 0.2
+            
+            axes[0, 0].bar(x - width*1.5, precision, width, label='Precision', alpha=0.8)
+            axes[0, 0].bar(x - width*0.5, recall, width, label='Recall', alpha=0.8)
+            axes[0, 0].bar(x + width*0.5, f1, width, label='F1', alpha=0.8)
+            axes[0, 0].bar(x + width*1.5, accuracy, width, label='Accuracy', alpha=0.8)
+            
+            axes[0, 0].set_xlabel('Detection Methods')
+            axes[0, 0].set_ylabel('Score')
+            axes[0, 0].set_title('Performance Metrics Comparison')
+            axes[0, 0].set_xticks(x)
+            axes[0, 0].set_xticklabels(methods, rotation=45)
+            axes[0, 0].legend()
+            axes[0, 0].grid(True, alpha=0.3)
+            
+            # 2. Detection time comparison
+            detection_times = [metrics[m]['avg_detection_time']*1000 for m in methods]
+            colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4']
+            
+            bars = axes[0, 1].bar(methods, detection_times, color=colors, alpha=0.8)
+            axes[0, 1].set_xlabel('Detection Methods')
+            axes[0, 1].set_ylabel('Average Detection Time (ms)')
+            axes[0, 1].set_title('Performance Comparison')
+            axes[0, 1].tick_params(axis='x', rotation=45)
+            
+            # Add value labels on bars
+            for bar, time in zip(bars, detection_times):
+                axes[0, 1].text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.5,
+                               f'{time:.1f}ms', ha='center', va='bottom')
+            
+            # 3. Confusion matrix for ZKP Framework
+            zkp_results = all_results["ZKP Framework"]
+            y_true = [1 if r.true_label == "adversarial" else 0 for r in zkp_results]
+            y_pred = [1 if r.predicted_label == "adversarial" else 0 for r in zkp_results]
+            
+            cm = confusion_matrix(y_true, y_pred)
+            sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=axes[1, 0])
+            axes[1, 0].set_title('ZKP Framework: Confusion Matrix')
+            axes[1, 0].set_xlabel('Predicted')
+            axes[1, 0].set_ylabel('Actual')
+            
+            # 4. Confidence distribution
+            zkp_confidences = [r.confidence for r in zkp_results]
+            safe_confidences = [r.confidence for r in zkp_results if r.true_label == "safe"]
+            adv_confidences = [r.confidence for r in zkp_results if r.true_label == "adversarial"]
+            
+            axes[1, 1].hist(safe_confidences, alpha=0.7, label='Safe Prompts', bins=10, color='green')
+            axes[1, 1].hist(adv_confidences, alpha=0.7, label='Adversarial Prompts', bins=10, color='red')
+            axes[1, 1].set_xlabel('Safety Score')
+            axes[1, 1].set_ylabel('Frequency')
+            axes[1, 1].set_title('ZKP Safety Score Distribution')
+            axes[1, 1].legend()
+            axes[1, 1].grid(True, alpha=0.3)
+            
+            # TODO: add true PR/ROC per method when positive probabilities available
+            return fig
+        else:
+            print("Skipping plots (set SKIP_PLOTS=false to enable and ensure matplotlib/seaborn installed)")
+            return None
     
     def save_detailed_results(self, all_results: Dict[str, List[DetectionResult]], metrics: Dict[str, Dict[str, float]]):
         """Save detailed results to files"""
-        ds_tag = os.path.basename(self.dataset_path) if self.dataset_path else 'built_in'
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        
-        # Save metrics summary
-        metrics_df = pd.DataFrame(metrics).T
-        metrics_df.to_csv(f'evaluation_metrics_{ds_tag}_{timestamp}.csv', index=False)
-        
-        # Save detailed results
-        detailed_results = []
-        for method_name, results in all_results.items():
-            for result in results:
-                detailed_results.append({
-                    'method': method_name,
-                    'prompt': result.prompt,
-                    'true_label': result.true_label,
-                    'predicted_label': result.predicted_label,
-                    'confidence': result.confidence,
-                    'detection_time': result.detection_time,
-                    'metadata': json.dumps(result.metadata)
-                })
-        
-        results_df = pd.DataFrame(detailed_results)
-        results_df.to_csv(f'detailed_results_{ds_tag}_{timestamp}.csv', index=False)
-        
-        print(f"📁 Results saved:")
-        print(f"  • Metrics: evaluation_metrics_{ds_tag}_{timestamp}.csv")
-        print(f"  • Detailed: detailed_results_{ds_tag}_{timestamp}.csv")
+        from datetime import datetime
+        ds_tag = self.dataset_path.split('/')[-1].replace('.json', '').replace('.csv', '') if self.dataset_path else 'built_in'
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        metrics_path = f"evaluation_metrics_{ds_tag}_{timestamp}.csv"
+        details_path = f"detailed_results_{ds_tag}_{timestamp}.csv"
+        if pd is None:
+            # write metrics
+            with open(metrics_path, 'w', encoding='utf-8') as f:
+                # header
+                keys = set()
+                for m in metrics.values():
+                    keys.update(m.keys())
+                cols = ["method"] + sorted(keys)
+                f.write(",".join(cols) + "\n")
+                for method, data in metrics.items():
+                    row = [method] + [str(data.get(k, "")) for k in sorted(keys)]
+                    f.write(",".join(row) + "\n")
+            # write details
+            with open(details_path, 'w', encoding='utf-8') as f:
+                f.write("method,prompt,true_label,predicted_label,confidence,detection_time,metadata\n")
+                for method, results in all_results.items():
+                    for r in results:
+                        prompt_escaped = '"' + r.prompt.replace('"', '""') + '"'
+                        f.write(f"{method},{prompt_escaped},{r.true_label},{r.predicted_label},{r.confidence},{r.detection_time},\"{json.dumps(r.metadata)}\"\n")
+        else:
+            metrics_df = pd.DataFrame(metrics).T
+            metrics_df.index.name = 'method'
+            metrics_df.to_csv(metrics_path)
+            # Flatten results
+            rows: List[Dict[str, Any]] = []
+            for method, results in all_results.items():
+                for r in results:
+                    rows.append({
+                        "method": method,
+                        "prompt": r.prompt,
+                        "true_label": r.true_label,
+                        "predicted_label": r.predicted_label,
+                        "confidence": r.confidence,
+                        "detection_time": r.detection_time,
+                        "metadata": json.dumps(r.metadata)
+                    })
+            details_df = pd.DataFrame(rows)
+            details_df.to_csv(details_path, index=False)
     
     def run_complete_evaluation(self):
         """Run the complete evaluation pipeline"""
@@ -558,12 +644,15 @@ class AdvancedEvaluationPipeline:
         fig = self.create_visualizations(all_results, metrics)
         
         # Save results
-        ds_tag = os.path.basename(self.dataset_path) if self.dataset_path else 'built_in'
+        ds_tag = self.dataset_path.split('/')[-1].replace('.json', '').replace('.csv', '') if self.dataset_path else 'built_in'
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         metrics_path = f"evaluation_metrics_{ds_tag}_{timestamp}.csv"
         details_path = f"detailed_results_{ds_tag}_{timestamp}.csv"
         self.save_detailed_results(all_results, metrics)
-        fig.savefig(f"evaluation_results_{ds_tag}_{timestamp}.png", dpi=160, bbox_inches='tight')
+        if fig is not None:
+            fig.savefig(f"evaluation_results_{ds_tag}_{timestamp}.png", dpi=160, bbox_inches='tight')
+        else:
+            print("Skipping plot saving due to plot generation failure.")
         print(f"Saved metrics: {metrics_path}\nSaved details: {details_path}")
         
         print("\n✅ Evaluation Pipeline Complete!")
