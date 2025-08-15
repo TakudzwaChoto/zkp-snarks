@@ -225,25 +225,25 @@ python run_evaluation.py -d data/synth_50k.json
 - Privacy-preserving log (tamper-evident)
   - For interaction i with prompt/response commitments \(c^{p}_i, c^{r}_i\) and previous hash \(h_{i-1}\):
   - \[ h_i = H\!\big(c^{p}_i \parallel c^{r}_i \parallel h_{i-1}\big),\quad \sigma_i = \mathrm{Sign}_{sk}(h_i) \]
-
+  - 
 ## Detailed stage-by-stage flow (how it works)
 
-```mermaid
+```bash
 flowchart TD
-  A[User Prompt x] --> N[Normalize \n \n\t\tilde{x}=normalize(x)]
-  N --> S[Sanitizer + DFA \n pattern checks]
-  N --> Z[ZKP: (c, ch, ρ, s, t) \n s>=τ?]
-  N --> K[SNARK: policy proof \n optional]
-  S --> D{Decision}
+  A["User Prompt x"] --> N["Normalize <br/><br/> x̃ = normalize(x)"]
+  N --> S["Sanitizer + DFA <br/> pattern checks"]
+  N --> Z["ZKP: (c, ch, ρ, s, t) <br/> s ≥ τ?"]
+  N --> K["SNARK: policy proof <br/> optional"]
+  S --> D{"Decision"}
   Z --> D
   K --> D
-  D -- blocked --> B[Flash + Audit + Logs]
-  D -- allowed --> G[Guardrail Prompt]
-  G --> LLM[Model (Ollama/OpenAI)]
-  LLM --> OF[Output Filter]
+  D -- blocked --> B["Flash + Audit + Logs"]
+  D -- allowed --> G["Guardrail Prompt"]
+  G --> LLM["Model (Ollama/OpenAI)"]
+  LLM --> OF["Output Filter"]
   OF -- blocked --> B
-  OF -- allowed --> LOG[Encrypted Log \n AES-GCM + hash-chain + Ed25519]
-  LOG --> UI[UI Audit Card]
+  OF -- allowed --> LOG["Encrypted Log <br/> AES-GCM + hash-chain + Ed25519"]
+  LOG --> UI["UI Audit Card"]
 ```
 
 ### Stage semantics
