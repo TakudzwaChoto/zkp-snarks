@@ -32,20 +32,26 @@ llm_config = {
        "base_url": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
 }
 
-# --- Agent Setup ---
-assistant = AssistantAgent(
-    name="assistant",
-    system_message="""You are a helpful AI assistant. 
+# --- Agent Setup (optional) ---
+ENABLE_AUTOGEN = os.getenv("ENABLE_AUTOGEN", "false").lower() == "true"
+assistant = None
+user_proxy = None
+if ENABLE_AUTOGEN:
+    try:
+        assistant = AssistantAgent(
+            name="assistant",
+            system_message="""You are a helpful AI assistant. 
     Respond safely and appropriately to user questions.
     Keep responses concise and helpful.""",
-    llm_config=llm_config
-)
-
-user_proxy = UserProxyAgent(
-    name="user_proxy",
-    human_input_mode="NEVER",
-    code_execution_config=False,
-)
+            llm_config=llm_config
+        )
+        user_proxy = UserProxyAgent(
+            name="user_proxy",
+            human_input_mode="NEVER",
+            code_execution_config=False,
+        )
+    except Exception as e:
+        print(f"Autogen disabled due to init error: {e}")
 
 def get_llm_response(prompt: str) -> str:
     try:
