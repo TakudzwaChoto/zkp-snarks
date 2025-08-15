@@ -3,7 +3,7 @@
 <head>
     <title>LLM Secure Logger</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" defer></script>
     <style>
         body {
             font-family: 'Segoe UI', Arial, sans-serif;
@@ -214,7 +214,7 @@
             {% if user %}
                 Logged in as <b>{{ user }}</b> ({{ role }})
                 <a href="/logout">Logout</a>
-                <form action="/clear_chat" method="post" style="display:inline;"><button class="clear-btn" type="submit">Clear Chat</button></form>
+                <form action="/clear_chat" method="post" style="display:inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="clear-btn" type="submit">Clear Chat</button></form>
             {% else %}
                 <a href="/login">Login</a>
             {% endif %}
@@ -222,6 +222,7 @@
         <h1>Test LLM Logging</h1>
         <div style="margin: 0 24px 12px 24px; padding: 10px 0; display: flex; align-items: center; gap: 24px; flex-wrap: wrap;">
             <form action="/set_strict_mode" method="post" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <label style="font-weight:500;">Strict Mode:
                     <input type="checkbox" name="strict_mode" onchange="this.form.submit()" {% if strict_mode %}checked{% endif %}>
                 </label>
@@ -229,6 +230,7 @@
             <span style="font-size:0.98em;">Current Model: <b>{{ llm_model }}</b></span>
             {% if role == 'admin' %}
             <form action="/set_model" method="post" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <label for="llm_model">Switch Model:</label>
                 <select name="llm_model" id="llm_model" onchange="this.form.submit()">
                     {% for model in available_models %}
@@ -280,6 +282,7 @@
             {% endfor %}
         </div>
         <form class="input-area" method="POST" autocomplete="off">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <textarea name="prompt" placeholder="Enter your prompt..." required></textarea>
             <button type="submit">Send</button>
         </form>

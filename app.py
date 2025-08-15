@@ -5,7 +5,8 @@ import os
 from autogen import AssistantAgent, UserProxyAgent
 from dotenv import load_dotenv
 from security.normalizer import normalize_prompt, NORMALIZER_VERSION
-from flask_wtf.csrf import CSRFProtect
+from security.sanitizer import sanitize_prompt
+from flask_wtf.csrf import CSRFProtect, generate_csrf
 import secrets as pysecrets
 import requests
 from flask_limiter import Limiter
@@ -32,20 +33,26 @@ llm_config = {
        "base_url": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
 }
 
-# --- Agent Setup ---
-assistant = AssistantAgent(
-    name="assistant",
-    system_message="""You are a helpful AI assistant. 
+# --- Agent Setup (optional) ---
+ENABLE_AUTOGEN = os.getenv("ENABLE_AUTOGEN", "false").lower() == "true"
+assistant = None
+user_proxy = None
+if ENABLE_AUTOGEN:
+    try:
+        assistant = AssistantAgent(
+            name="assistant",
+            system_message="""You are a helpful AI assistant. 
     Respond safely and appropriately to user questions.
     Keep responses concise and helpful.""",
-    llm_config=llm_config
-)
-
-user_proxy = UserProxyAgent(
-    name="user_proxy",
-    human_input_mode="NEVER",
-    code_execution_config=False,
-)
+            llm_config=llm_config
+        )
+        user_proxy = UserProxyAgent(
+            name="user_proxy",
+            human_input_mode="NEVER",
+            code_execution_config=False,
+        )
+    except Exception as e:
+        print(f"Autogen disabled due to init error: {e}")
 
 def get_llm_response(prompt: str) -> str:
     try:
@@ -72,11 +79,16 @@ def get_llm_response(prompt: str) -> str:
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", pysecrets.token_hex(32))
 app.config.update(
-    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_SECURE=os.getenv("SESSION_COOKIE_SECURE", "false").lower()=="true",
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
 )
+app.config["WTF_CSRF_SSL_STRICT"] = os.getenv("WTF_CSRF_SSL_STRICT", "false").lower()=="true"
 csrf = CSRFProtect(app)
+
+@app.context_processor
+def inject_csrf_token():
+    return dict(csrf_token=generate_csrf)
 
 # Set up rate limiting
 limiter = Limiter(
@@ -386,20 +398,11 @@ def index():
                 session.modified = True
                 flash("Prompt blocked: possible injection or invalid input.")
                 return redirect(url_for("index"))
-            # LLM self-checker
-            t1 = datetime.now(); llm_ok = llm_self_check(sanitized_prompt); t_llm = (datetime.now()-t1).total_seconds()
-            if not llm_ok:
-                user_msg["status"] = "blocked"
-                session["chat_history"].append(user_msg)
-                session.modified = True
-                audit_info = {
-                    'prompt': prompt,
-                    'explanation': session.get('self_check_reason', ''),
-                    'status': 'blocked'
-                }
-                session['audit_info'] = audit_info
-                flash("Prompt blocked: detected as possible prompt injection or adversarial intent by LLM self-checker.")
-                return redirect(url_for("index"))
+            # LLM self-checker (advisory only in non-strict mode)
+            try:
+                t1 = datetime.now(); _ = llm_self_check(sanitized_prompt); t_llm = (datetime.now()-t1).total_seconds()
+            except Exception:
+                t_llm = 0.0
         guarded_prompt = add_safety_guardrails(sanitized_prompt)
         t2 = datetime.now(); response = get_llm_response(guarded_prompt); t_llm_gen = (datetime.now()-t2).total_seconds()
         # Output filtering

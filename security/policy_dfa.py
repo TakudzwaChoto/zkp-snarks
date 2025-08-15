@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from typing import Dict, Optional, Iterable
+from typing import Dict, Optional, Iterable, List
 import json
 import os
 
@@ -26,7 +26,7 @@ class PolicyDFA:
         node.terminal = True
 
     def any_match(self, text: str) -> bool:
-        # Scan text using the trie
+        # Scan text using the trie for phrase-level matches
         n = len(text)
         for i in range(n):
             node = self.root
@@ -34,7 +34,10 @@ class PolicyDFA:
             while j < n and text[j] in node.children:
                 node = node.children[text[j]]
                 if node.terminal:
-                    return True
+                    # Ensure word-boundary-like behavior: next char must be space/punct or end
+                    nxt = text[j+1:j+2]
+                    if not nxt or not nxt.isalnum():
+                        return True
                 j += 1
         return False
 
@@ -48,6 +51,7 @@ def load_policy_terms(path: str) -> Iterable[str]:
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
         if isinstance(data, list):
-            # ensure lowercase, since inputs are normalized
-            return [str(x).lower() for x in data]
+            # ensure lowercase and trimmed
+            terms: List[str] = [str(x).lower().strip() for x in data if isinstance(x, str) and len(str(x).strip()) > 2]
+            return terms
         return []

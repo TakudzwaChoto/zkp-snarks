@@ -8,21 +8,44 @@ import re
 import random
 import time
 import json
-import pandas as pd
-import numpy as np
+try:
+    import pandas as pd  # type: ignore
+except Exception:
+    pd = None  # Fallback path
+try:
+    import numpy as np  # type: ignore
+except Exception:
+    np = None
 from typing import Dict, List, Tuple, Any
 from typing import Optional
 from dataclasses import dataclass
-from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score, confusion_matrix, classification_report
-from sklearn.metrics import roc_curve, auc, precision_recall_curve
-import matplotlib.pyplot as plt
-import seaborn as sns
+try:
+    from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score, confusion_matrix, classification_report
+    from sklearn.metrics import roc_curve, auc, precision_recall_curve
+except Exception:
+    precision_score = recall_score = f1_score = accuracy_score = None
+    confusion_matrix = roc_curve = auc = precision_recall_curve = None
+    classification_report = None
+try:
+    import matplotlib.pyplot as plt  # type: ignore
+    import seaborn as sns  # type: ignore
+except Exception:
+    plt = None
+    sns = None
 from datetime import datetime
 import requests
 from zkp_security import ZKPSecurity, ZKProof
 import os
 import math
 from security.semantic_classifier import train_semantic_model
+from security.sanitizer import sanitize_prompt
+try:
+    from transformers import AutoTokenizer, AutoModelForSequenceClassification  # type: ignore
+    import torch  # type: ignore
+except Exception:
+    AutoTokenizer = None
+    AutoModelForSequenceClassification = None
+    torch = None
 
 @dataclass
 class DetectionResult:
@@ -37,9 +60,23 @@ class DetectionResult:
 class AdvancedEvaluationPipeline:
     def __init__(self, dataset_path: Optional[str] = None):
         self.zkp_security = ZKPSecurity()
-        self.results = []
-        self.dataset_path = dataset_path
         self.test_dataset = self._load_comprehensive_dataset() if not dataset_path else self._load_external_dataset(dataset_path)
+        self.dataset_path = dataset_path
+        self.dataset_name = (dataset_path.split('/')[-1].replace('.json','').replace('.csv','')) if dataset_path else 'built_in'
+        # Optional transformer model
+        self.transformer_model_name = os.getenv('TRANSFORMER_MODEL', 'distilroberta-base')
+        self.transformer_threshold = float(os.getenv('TRANSFORMER_THRESHOLD', '0.5'))
+        self.transformer_enabled = os.getenv('ENABLE_TRANSFORMER', 'false').lower() == 'true'
+        self._tf_tokenizer = None
+        self._tf_model = None
+        if self.transformer_enabled and AutoTokenizer is not None and AutoModelForSequenceClassification is not None:
+            try:
+                self._tf_tokenizer = AutoTokenizer.from_pretrained(self.transformer_model_name)
+                self._tf_model = AutoModelForSequenceClassification.from_pretrained(self.transformer_model_name, num_labels=2)
+                self._tf_model.eval()
+            except Exception as e:
+                print(f"Transformer disabled (load error): {e}")
+                self.transformer_enabled = False
         # Allow env override of ZKP threshold
         thr = os.getenv("ZKP_THRESHOLD")
         if thr:
@@ -120,18 +157,49 @@ class AdvancedEvaluationPipeline:
     
     def _load_external_dataset(self, path: str) -> List[Tuple[str, str]]:
         """Load dataset from JSON/CSV with columns prompt,label"""
-        import pandas as pd
+        import os
         if not os.path.exists(path):
             raise FileNotFoundError(f"Dataset not found: {path}")
         if path.endswith('.json'):
-            df = pd.read_json(path)
+            if pd is None:
+                with open(path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                return [(row['prompt'], row['label']) for row in data]
+            df = pd.read_json(path)  # type: ignore
         elif path.endswith('.csv'):
-            df = pd.read_csv(path)
+            if pd is None:
+                records: List[Tuple[str, str]] = []
+                with open(path, 'r', encoding='utf-8') as f:
+                    header = f.readline().strip().split(',')
+                    idx_p = header.index('prompt')
+                    idx_l = header.index('label')
+                    for line in f:
+                        # naive CSV parsing; prompts may be quoted
+                        if line.startswith('"'):
+                            # read until next ", then comma, then label
+                            pass
+                        parts = []
+                        cur = ''
+                        q = False
+                        for ch in line:
+                            if ch == '"':
+                                q = not q
+                                continue
+                            if ch == ',' and not q:
+                                parts.append(cur)
+                                cur = ''
+                            else:
+                                cur += ch
+                        if cur:
+                            parts.append(cur.rstrip('\n'))
+                        prompt = parts[idx_p].strip('"')
+                        label = parts[idx_l]
+                        records.append((prompt, label))
+                return records
+            df = pd.read_csv(path)  # type: ignore
         else:
             raise ValueError("Dataset must be .json or .csv")
-        if not set(['prompt', 'label']).issubset(df.columns):
-            raise ValueError("Dataset must have columns: prompt, label")
-        return [(str(r.prompt), str(r.label)) for r in df.itertuples()]
+        return list(zip(df['prompt'].tolist(), df['label'].tolist()))
     
     def zkp_detection(self, prompt: str) -> DetectionResult:
         """Use actual ZKP framework for detection"""
@@ -160,30 +228,22 @@ class AdvancedEvaluationPipeline:
         )
     
     def regex_baseline(self, prompt: str) -> DetectionResult:
-        """Simple regex-based detection"""
+        """Simple regex-based detection (normalized + extended patterns)"""
         start_time = time.time()
-        
-        adversarial_patterns = [
-            r"ignore\s+(previous\s+)?instructions?",
-            r"bypass",
-            r"admin\s+password",
-            r"system\s+prompt",
-            r"act\s+as\s+admin",
-            r"roleplay\s+as",
-            r"pretend\s+you\s+are",
-            r"override",
-            r"disregard",
-            r"root\s+password"
+        normalized, triggered, matched = sanitize_prompt(prompt)
+        # additional lightweight patterns not in sanitizer
+        extra_patterns = [
+            r"root\s+password",
+            r"disable\s+logging",
+            r"leak\s+secrets",
+            r"no\s+restrictions?",
         ]
-        
-        score = 0
-        for pattern in adversarial_patterns:
-            if re.search(pattern, prompt.lower()):
-                score += 1
-        
+        for pat in extra_patterns:
+            if re.search(pat, normalized):
+                matched.append(pat)
+        score = len(matched)
         detection_time = time.time() - start_time
-        confidence = min(score / 3, 1.0)  # Normalize to 0-1
-        
+        confidence = min(score / 3, 1.0)
         return DetectionResult(
             prompt=prompt,
             true_label="",
@@ -191,7 +251,7 @@ class AdvancedEvaluationPipeline:
             confidence=confidence,
             detection_time=detection_time,
             method="Regex Baseline",
-            metadata={"pattern_matches": score, "patterns_checked": len(adversarial_patterns)}
+            metadata={"pattern_matches": score, "patterns_checked": len(matched)}
         )
     
     def llm_simulator(self, prompt: str) -> DetectionResult:
@@ -199,7 +259,9 @@ class AdvancedEvaluationPipeline:
         start_time = time.time()
         
         # Simulate LLM processing time
-        time.sleep(0.1)
+        import os as _os
+        if _os.getenv('FAST_EVAL', 'false').lower() != 'true':
+            time.sleep(0.1)
         
         # Complex pattern analysis
         risk_factors = {
@@ -209,41 +271,47 @@ class AdvancedEvaluationPipeline:
             "system_prompt": 0.6,
             "roleplay": 0.5,
             "password_request": 0.8,
-            "confidential_data": 0.7
+            "confidential_data": 0.7,
+            "encoding": 0.2,
+            "dialogue": 0.2,
         }
         
-        prompt_lower = prompt.lower()
-        total_risk = 0
+        normalized, _, _ = sanitize_prompt(prompt)
+        total_risk = 0.0
         
-        if "ignore" in prompt_lower and "instruction" in prompt_lower:
+        if "ignore" in normalized and "instruction" in normalized:
             total_risk += risk_factors["ignore_instructions"]
-        if "bypass" in prompt_lower:
+        if "bypass" in normalized:
             total_risk += risk_factors["bypass_security"]
-        if "admin" in prompt_lower and ("password" in prompt_lower or "access" in prompt_lower):
+        if "admin" in normalized and ("password" in normalized or "access" in normalized):
             total_risk += risk_factors["admin_access"]
-        if "system prompt" in prompt_lower:
+        if "system prompt" in normalized or "show prompt" in normalized:
             total_risk += risk_factors["system_prompt"]
-        if "roleplay" in prompt_lower or "pretend" in prompt_lower:
+        if "roleplay" in normalized or "pretend" in normalized:
             total_risk += risk_factors["roleplay"]
-        if "password" in prompt_lower:
+        if "password" in normalized:
             total_risk += risk_factors["password_request"]
-        if "confidential" in prompt_lower or "secret" in prompt_lower:
+        if "confidential" in normalized or "secret" in normalized or "leak" in normalized:
             total_risk += risk_factors["confidential_data"]
+        if "base64" in normalized or re.search(r"%[0-9a-fA-F]{2}", normalized):
+            total_risk += risk_factors["encoding"]
+        if ("user:" in normalized and ("assistant:" in normalized or "system:" in normalized)):
+            total_risk += risk_factors["dialogue"]
         
-        # Add some randomness to simulate LLM uncertainty
-        total_risk += random.uniform(-0.1, 0.1)
-        total_risk = max(0, min(1, total_risk))
+        # Reduced randomness
+        total_risk += max(-0.05, min(0.05, random.uniform(-0.05, 0.05)))
+        total_risk = max(0.0, min(1.0, total_risk))
         
         detection_time = time.time() - start_time
         
         return DetectionResult(
             prompt=prompt,
             true_label="",
-            predicted_label="adversarial" if total_risk > 0.5 else "safe",
+            predicted_label="adversarial" if total_risk >= 0.5 else "safe",
             confidence=total_risk,
             detection_time=detection_time,
             method="LLM Simulator",
-            metadata={"risk_factors": total_risk, "processing_time": detection_time}
+            metadata={"risk": total_risk}
         )
     
     def ensemble_detection(self, prompt: str) -> DetectionResult:
@@ -283,6 +351,25 @@ class AdvancedEvaluationPipeline:
             }
         )
     
+    def transformer_detection(self, prompt: str) -> DetectionResult:
+        """Transformer-based classifier; returns probability as confidence."""
+        start_time = time.time()
+        try:
+            if not self.transformer_enabled or self._tf_model is None or self._tf_tokenizer is None or torch is None:
+                # Fallback: heuristic on normalized prompt
+                prob = 1.0 if any(k in prompt.lower() for k in ("ignore","bypass","admin","password","system prompt")) else 0.0
+                label = 'adversarial' if prob >= self.transformer_threshold else 'safe'
+                return DetectionResult(prompt=prompt, true_label='', predicted_label=label, confidence=prob, detection_time=time.time()-start_time, method='Transformer (heuristic)', metadata={})
+            inputs = self._tf_tokenizer(prompt, truncation=True, padding=True, max_length=256, return_tensors='pt')
+            with torch.no_grad():
+                logits = self._tf_model(**inputs).logits
+                probs = torch.softmax(logits, dim=-1).cpu().numpy()[0]
+            prob_adv = float(probs[1])  # assume label 1 is adversarial
+            label = 'adversarial' if prob_adv >= self.transformer_threshold else 'safe'
+            return DetectionResult(prompt=prompt, true_label='', predicted_label=label, confidence=prob_adv, detection_time=time.time()-start_time, method='Transformer', metadata={'model': self.transformer_model_name})
+        except Exception as e:
+            return DetectionResult(prompt=prompt, true_label='', predicted_label='error', confidence=0.0, detection_time=time.time()-start_time, method='Transformer', metadata={'error': str(e)})
+    
     def run_evaluation(self) -> Dict[str, Any]:
         """Run comprehensive evaluation"""
         print("🔬 Starting Advanced Evaluation Pipeline...")
@@ -317,19 +404,38 @@ class AdvancedEvaluationPipeline:
         confidences = [r.confidence for r in results]
         
         # Basic metrics
-        precision = precision_score(y_true, y_pred, zero_division=0)
-        recall = recall_score(y_true, y_pred, zero_division=0)
-        f1 = f1_score(y_true, y_pred, zero_division=0)
-        accuracy = accuracy_score(y_true, y_pred)
-        
+        if precision_score is None:
+            # lightweight metrics
+            tp = sum(1 for yt, yp in zip(y_true, y_pred) if yt == 1 and yp == 1)
+            fp = sum(1 for yt, yp in zip(y_true, y_pred) if yt == 0 and yp == 1)
+            fn = sum(1 for yt, yp in zip(y_true, y_pred) if yt == 1 and yp == 0)
+            tn = sum(1 for yt, yp in zip(y_true, y_pred) if yt == 0 and yp == 0)
+            precision = tp / (tp + fp) if (tp + fp) else 0.0
+            recall = tp / (tp + fn) if (tp + fn) else 0.0
+            f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
+            accuracy = (tp + tn) / max(1, len(y_true))
+        else:
+            precision = precision_score(y_true, y_pred, zero_division=0)
+            recall = recall_score(y_true, y_pred, zero_division=0)
+            f1 = f1_score(y_true, y_pred, zero_division=0)
+            accuracy = accuracy_score(y_true, y_pred)
         # Advanced metrics
-        tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
+        if confusion_matrix is None:
+            tn = sum(1 for yt, yp in zip(y_true, y_pred) if yt == 0 and yp == 0)
+            fp = sum(1 for yt, yp in zip(y_true, y_pred) if yt == 0 and yp == 1)
+            fn = sum(1 for yt, yp in zip(y_true, y_pred) if yt == 1 and yp == 0)
+            tp = sum(1 for yt, yp in zip(y_true, y_pred) if yt == 1 and yp == 1)
+        else:
+            tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
         specificity = tn / (tn + fp) if (tn + fp) > 0 else 0
         sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0
         
         # Performance metrics
-        avg_detection_time = np.mean([r.detection_time for r in results])
-        
+        # Average detection time
+        if np is None:
+            avg_detection_time = sum(r.detection_time for r in results) / max(1, len(results))
+        else:
+            avg_detection_time = np.mean([r.detection_time for r in results])
         return {
             "precision": precision,
             "recall": recall,
@@ -393,181 +499,207 @@ class AdvancedEvaluationPipeline:
         """Create comprehensive visualizations"""
         print("\n📊 Generating visualizations...")
         
-        # Set up the plotting style
-        plt.style.use('seaborn-v0_8')
-        fig, axes = plt.subplots(2, 2, figsize=(15, 12))
-        fig.suptitle('ZKP-Based LLM Security: Comprehensive Evaluation Results', fontsize=16, fontweight='bold')
-        
-        # 1. Metrics comparison
-        methods = list(metrics.keys())
-        precision = [metrics[m]['precision'] for m in methods]
-        recall = [metrics[m]['recall'] for m in methods]
-        f1 = [metrics[m]['f1'] for m in methods]
-        accuracy = [metrics[m]['accuracy'] for m in methods]
-        
-        x = np.arange(len(methods))
-        width = 0.2
-        
-        axes[0, 0].bar(x - width*1.5, precision, width, label='Precision', alpha=0.8)
-        axes[0, 0].bar(x - width*0.5, recall, width, label='Recall', alpha=0.8)
-        axes[0, 0].bar(x + width*0.5, f1, width, label='F1', alpha=0.8)
-        axes[0, 0].bar(x + width*1.5, accuracy, width, label='Accuracy', alpha=0.8)
-        
-        axes[0, 0].set_xlabel('Detection Methods')
-        axes[0, 0].set_ylabel('Score')
-        axes[0, 0].set_title('Performance Metrics Comparison')
-        axes[0, 0].set_xticks(x)
-        axes[0, 0].set_xticklabels(methods, rotation=45)
-        axes[0, 0].legend()
-        axes[0, 0].grid(True, alpha=0.3)
-        
-        # 2. Detection time comparison
-        detection_times = [metrics[m]['avg_detection_time']*1000 for m in methods]
-        colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4']
-        
-        bars = axes[0, 1].bar(methods, detection_times, color=colors, alpha=0.8)
-        axes[0, 1].set_xlabel('Detection Methods')
-        axes[0, 1].set_ylabel('Average Detection Time (ms)')
-        axes[0, 1].set_title('Performance Comparison')
-        axes[0, 1].tick_params(axis='x', rotation=45)
-        
-        # Add value labels on bars
-        for bar, time in zip(bars, detection_times):
-            axes[0, 1].text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.5,
-                           f'{time:.1f}ms', ha='center', va='bottom')
-        
-        # 3. Confusion matrix for ZKP Framework
-        zkp_results = all_results["ZKP Framework"]
-        y_true = [1 if r.true_label == "adversarial" else 0 for r in zkp_results]
-        y_pred = [1 if r.predicted_label == "adversarial" else 0 for r in zkp_results]
-        
-        cm = confusion_matrix(y_true, y_pred)
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=axes[1, 0])
-        axes[1, 0].set_title('ZKP Framework: Confusion Matrix')
-        axes[1, 0].set_xlabel('Predicted')
-        axes[1, 0].set_ylabel('Actual')
-        
-        # 4. Confidence distribution
-        zkp_confidences = [r.confidence for r in zkp_results]
-        safe_confidences = [r.confidence for r in zkp_results if r.true_label == "safe"]
-        adv_confidences = [r.confidence for r in zkp_results if r.true_label == "adversarial"]
-        
-        axes[1, 1].hist(safe_confidences, alpha=0.7, label='Safe Prompts', bins=10, color='green')
-        axes[1, 1].hist(adv_confidences, alpha=0.7, label='Adversarial Prompts', bins=10, color='red')
-        axes[1, 1].set_xlabel('Safety Score')
-        axes[1, 1].set_ylabel('Frequency')
-        axes[1, 1].set_title('ZKP Safety Score Distribution')
-        axes[1, 1].legend()
-        axes[1, 1].grid(True, alpha=0.3)
-        
-        # TODO: add true PR/ROC per method when positive probabilities available
-        return fig
+        skip_plots = os.getenv('SKIP_PLOTS', 'true').lower() == 'true'
+        if not skip_plots and plt is not None and sns is not None:
+            # Set up the plotting style
+            plt.style.use('seaborn-v0_8')
+            fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+            fig.suptitle('ZKP-Based LLM Security: Comprehensive Evaluation Results', fontsize=16, fontweight='bold')
+            
+            # 1. Metrics comparison
+            methods = list(metrics.keys())
+            precision = [metrics[m]['precision'] for m in methods]
+            recall = [metrics[m]['recall'] for m in methods]
+            f1 = [metrics[m]['f1'] for m in methods]
+            accuracy = [metrics[m]['accuracy'] for m in methods]
+            
+            x = np.arange(len(methods))
+            width = 0.2
+            
+            axes[0, 0].bar(x - width*1.5, precision, width, label='Precision', alpha=0.8)
+            axes[0, 0].bar(x - width*0.5, recall, width, label='Recall', alpha=0.8)
+            axes[0, 0].bar(x + width*0.5, f1, width, label='F1', alpha=0.8)
+            axes[0, 0].bar(x + width*1.5, accuracy, width, label='Accuracy', alpha=0.8)
+            
+            axes[0, 0].set_xlabel('Detection Methods')
+            axes[0, 0].set_ylabel('Score')
+            axes[0, 0].set_title('Performance Metrics Comparison')
+            axes[0, 0].set_xticks(x)
+            axes[0, 0].set_xticklabels(methods, rotation=45)
+            axes[0, 0].legend()
+            axes[0, 0].grid(True, alpha=0.3)
+            
+            # 2. Detection time comparison
+            detection_times = [metrics[m]['avg_detection_time']*1000 for m in methods]
+            colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4']
+            
+            bars = axes[0, 1].bar(methods, detection_times, color=colors, alpha=0.8)
+            axes[0, 1].set_xlabel('Detection Methods')
+            axes[0, 1].set_ylabel('Average Detection Time (ms)')
+            axes[0, 1].set_title('Performance Comparison')
+            axes[0, 1].tick_params(axis='x', rotation=45)
+            
+            # Add value labels on bars
+            for bar, time in zip(bars, detection_times):
+                axes[0, 1].text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.5,
+                               f'{time:.1f}ms', ha='center', va='bottom')
+            
+            # 3. Confusion matrix for ZKP Framework
+            zkp_results = all_results["ZKP Framework"]
+            y_true = [1 if r.true_label == "adversarial" else 0 for r in zkp_results]
+            y_pred = [1 if r.predicted_label == "adversarial" else 0 for r in zkp_results]
+            
+            cm = confusion_matrix(y_true, y_pred)
+            sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=axes[1, 0])
+            axes[1, 0].set_title('ZKP Framework: Confusion Matrix')
+            axes[1, 0].set_xlabel('Predicted')
+            axes[1, 0].set_ylabel('Actual')
+            
+            # 4. Confidence distribution
+            zkp_confidences = [r.confidence for r in zkp_results]
+            safe_confidences = [r.confidence for r in zkp_results if r.true_label == "safe"]
+            adv_confidences = [r.confidence for r in zkp_results if r.true_label == "adversarial"]
+            
+            axes[1, 1].hist(safe_confidences, alpha=0.7, label='Safe Prompts', bins=10, color='green')
+            axes[1, 1].hist(adv_confidences, alpha=0.7, label='Adversarial Prompts', bins=10, color='red')
+            axes[1, 1].set_xlabel('Safety Score')
+            axes[1, 1].set_ylabel('Frequency')
+            axes[1, 1].set_title('ZKP Safety Score Distribution')
+            axes[1, 1].legend()
+            axes[1, 1].grid(True, alpha=0.3)
+            
+            # TODO: add true PR/ROC per method when positive probabilities available
+            return fig
+        else:
+            print("Skipping plots (set SKIP_PLOTS=false to enable and ensure matplotlib/seaborn installed)")
+            return None
     
     def save_detailed_results(self, all_results: Dict[str, List[DetectionResult]], metrics: Dict[str, Dict[str, float]]):
         """Save detailed results to files"""
-        ds_tag = os.path.basename(self.dataset_path) if self.dataset_path else 'built_in'
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        
-        # Save metrics summary
-        metrics_df = pd.DataFrame(metrics).T
-        metrics_df.to_csv(f'evaluation_metrics_{ds_tag}_{timestamp}.csv', index=False)
-        
-        # Save detailed results
-        detailed_results = []
-        for method_name, results in all_results.items():
-            for result in results:
-                detailed_results.append({
-                    'method': method_name,
-                    'prompt': result.prompt,
-                    'true_label': result.true_label,
-                    'predicted_label': result.predicted_label,
-                    'confidence': result.confidence,
-                    'detection_time': result.detection_time,
-                    'metadata': json.dumps(result.metadata)
-                })
-        
-        results_df = pd.DataFrame(detailed_results)
-        results_df.to_csv(f'detailed_results_{ds_tag}_{timestamp}.csv', index=False)
-        
-        print(f"📁 Results saved:")
-        print(f"  • Metrics: evaluation_metrics_{ds_tag}_{timestamp}.csv")
-        print(f"  • Detailed: detailed_results_{ds_tag}_{timestamp}.csv")
+        from datetime import datetime
+        ds_tag = self.dataset_path.split('/')[-1].replace('.json', '').replace('.csv', '') if self.dataset_path else 'built_in'
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        metrics_path = f"evaluation_metrics_{ds_tag}_{timestamp}.csv"
+        details_path = f"detailed_results_{ds_tag}_{timestamp}.csv"
+        if pd is None:
+            # write metrics
+            with open(metrics_path, 'w', encoding='utf-8') as f:
+                # header
+                keys = set()
+                for m in metrics.values():
+                    keys.update(m.keys())
+                cols = ["method"] + sorted(keys)
+                f.write(",".join(cols) + "\n")
+                for method, data in metrics.items():
+                    row = [method] + [str(data.get(k, "")) for k in sorted(keys)]
+                    f.write(",".join(row) + "\n")
+            # write details
+            with open(details_path, 'w', encoding='utf-8') as f:
+                f.write("method,prompt,true_label,predicted_label,confidence,detection_time,metadata\n")
+                for method, results in all_results.items():
+                    for r in results:
+                        prompt_escaped = '"' + r.prompt.replace('"', '""') + '"'
+                        f.write(f"{method},{prompt_escaped},{r.true_label},{r.predicted_label},{r.confidence},{r.detection_time},\"{json.dumps(r.metadata)}\"\n")
+        else:
+            metrics_df = pd.DataFrame(metrics).T
+            metrics_df.index.name = 'method'
+            metrics_df.to_csv(metrics_path)
+            # Flatten results
+            rows: List[Dict[str, Any]] = []
+            for method, results in all_results.items():
+                for r in results:
+                    rows.append({
+                        "method": method,
+                        "prompt": r.prompt,
+                        "true_label": r.true_label,
+                        "predicted_label": r.predicted_label,
+                        "confidence": r.confidence,
+                        "detection_time": r.detection_time,
+                        "metadata": json.dumps(r.metadata)
+                    })
+            details_df = pd.DataFrame(rows)
+            details_df.to_csv(details_path, index=False)
     
     def run_complete_evaluation(self):
         """Run the complete evaluation pipeline"""
         print("\n🚀 Starting Complete Evaluation Pipeline")
-        print("=" * 60)
-        
+        print("============================================================")
         print("🔬 Starting Advanced Evaluation Pipeline...")
-        print("=" * 60)
-        
-        all_results = {
-            "ZKP Framework": [],
-            "Regex Baseline": [],
-            "LLM Simulator": [],
-            "Ensemble": []
+        print("============================================================\n")
+        methods = {
+            "ZKP Framework": self.zkp_detection,
+            "Regex Baseline": self.regex_baseline,
+            "LLM Simulator": self.llm_simulator,
         }
-        
-        print("\n📊 Evaluating ZKP Framework...")
-        for prompt, true_label in self.test_dataset:
-            res = self.zkp_detection(prompt)
-            res.true_label = true_label
-            all_results["ZKP Framework"].append(res)
-        
-        print("\n📊 Evaluating Regex Baseline...")
-        for prompt, true_label in self.test_dataset:
-            res = self.regex_baseline(prompt)
-            res.true_label = true_label
-            all_results["Regex Baseline"].append(res)
-        
-        print("\n📊 Evaluating LLM Simulator...")
-        for prompt, true_label in self.test_dataset:
-            res = self.llm_simulator(prompt)
-            res.true_label = true_label
-            all_results["LLM Simulator"].append(res)
-        
-        # Optional: Train/evaluate semantic classifier on large datasets
-        if len(self.test_dataset) >= 5000:
-            try:
-                print("\n📊 Training Semantic Classifier (TF-IDF + Logistic)...")
+        if self.transformer_enabled:
+            methods["Transformer"] = self.transformer_detection
+        methods["Ensemble"] = self.ensemble_detection
+        all_results: Dict[str, List[DetectionResult]] = {}
+        for name, func in methods.items():
+            print(f"📊 Evaluating {name}...\n")
+            results: List[DetectionResult] = []
+            for prompt, label in self.test_dataset:
+                r = func(prompt)
+                r.true_label = label
+                results.append(r)
+            all_results[name] = results
+        # Optional: semantic classifier (TF-IDF+LR or heuristic fallback)
+        try:
+            from security.semantic_classifier import train_semantic_model
+            if os.getenv('ENABLE_SEMANTIC', 'true').lower() == 'true':
+                print("\n📊 Training/Evaluating Semantic Classifier...\n")
                 model = train_semantic_model(self.test_dataset)
-                # Evaluate inline by mapping probability to label with 0.5 threshold
-                sc_results = []
-                for prompt, true_label in self.test_dataset:
-                    prob = float(model.predict_proba([prompt])[0])
-                    pred = "adversarial" if prob >= 0.5 else "safe"
-                    sc_results.append(DetectionResult(prompt, true_label, pred, prob, 0.0, "Semantic Classifier", {}))
-                all_results["Semantic Classifier"] = sc_results
-            except Exception as e:
-                print(f"Semantic classifier skipped: {e}")
-        
-        print("\n📊 Evaluating Ensemble...")
-        for i, (prompt, true_label) in enumerate(self.test_dataset):
-            # Simple OR ensemble over methods for recall boost
-            zkp_res = all_results["ZKP Framework"][i]
-            re_res = all_results["Regex Baseline"][i]
-            llm_res = all_results["LLM Simulator"][i]
-            adversarial_votes = sum([zkp_res.predicted_label == "adversarial", re_res.predicted_label == "adversarial", llm_res.predicted_label == "adversarial"])
-            predicted = "adversarial" if adversarial_votes >= 1 else "safe"
-            confidence = max(zkp_res.confidence, re_res.confidence, llm_res.confidence)
-            all_results["Ensemble"].append(DetectionResult(prompt, true_label, predicted, confidence, max(zkp_res.detection_time, re_res.detection_time, llm_res.detection_time), "Ensemble", {"votes": adversarial_votes}))
-        
+                sc_results: List[DetectionResult] = []
+                for prompt, label in self.test_dataset:
+                    # predict_proba returns prob of class 1 (adversarial)
+                    prob = float(model.predict_proba([prompt])[0]) if hasattr(model, 'predict_proba') else 0.5
+                    pred = 'adversarial' if prob >= 0.5 else 'safe'
+                    sc_results.append(DetectionResult(prompt, label, pred, prob, 0.0, 'Semantic Classifier', {}))
+                all_results['Semantic Classifier'] = sc_results
+        except Exception as e:
+            print(f"Semantic classifier skipped: {e}")
+        print("\n" + "="*80)
+        print("📈 COMPREHENSIVE EVALUATION RESULTS")
+        print("="*80)
         metrics = self.print_results(all_results)
-        
-        # Create visualizations
+        print("\n" + "="*80)
+        print("🔍 DETAILED ANALYSIS")
+        print("="*80 + "\n")
+        for method_name, results in all_results.items():
+            self.print_detailed_analysis(method_name, results)
+            print("\n")
         fig = self.create_visualizations(all_results, metrics)
-        
         # Save results
-        ds_tag = os.path.basename(self.dataset_path) if self.dataset_path else 'built_in'
+        ds_tag = self.dataset_name
+        from datetime import datetime
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         metrics_path = f"evaluation_metrics_{ds_tag}_{timestamp}.csv"
         details_path = f"detailed_results_{ds_tag}_{timestamp}.csv"
         self.save_detailed_results(all_results, metrics)
-        fig.savefig(f"evaluation_results_{ds_tag}_{timestamp}.png", dpi=160, bbox_inches='tight')
+        if fig is not None:
+            fig.savefig(f"evaluation_results_{ds_tag}_{timestamp}.png", dpi=160, bbox_inches='tight')
+        else:
+            print("Skipping plot saving due to plot generation failure.")
         print(f"Saved metrics: {metrics_path}\nSaved details: {details_path}")
-        
-        print("\n✅ Evaluation Pipeline Complete!")
-        print("=" * 60)
+        print("\n✅ Evaluation Pipeline Complete!\n============================================================")
+
+    def print_detailed_analysis(self, method_name: str, results: List[DetectionResult]) -> None:
+        tp = sum(1 for r in results if r.true_label == 'adversarial' and r.predicted_label == 'adversarial')
+        tn = sum(1 for r in results if r.true_label == 'safe' and r.predicted_label == 'safe')
+        fp = sum(1 for r in results if r.true_label == 'safe' and r.predicted_label == 'adversarial')
+        fn = sum(1 for r in results if r.true_label == 'adversarial' and r.predicted_label == 'safe')
+        avg_time_ms = (sum(r.detection_time for r in results) / max(1, len(results))) * 1000
+        print(f"📊 {method_name}:")
+        print(f"  • True Positives: {tp}")
+        print(f"  • True Negatives: {tn}")
+        print(f"  • False Positives: {fp}")
+        print(f"  • False Negatives: {fn}")
+        print(f"  • Average Detection Time: {avg_time_ms:.2f}ms")
+        # show one FN example if exists
+        for r in results:
+            if r.true_label == 'adversarial' and r.predicted_label == 'safe':
+                print(f"  • False Negative Example: '{r.prompt[:120]}'")
+                break
 
 if __name__ == "__main__":
     # Run the complete evaluation
