@@ -5,6 +5,7 @@ import os
 from autogen import AssistantAgent, UserProxyAgent
 from dotenv import load_dotenv
 from security.normalizer import normalize_prompt, NORMALIZER_VERSION
+from security.sanitizer import sanitize_prompt
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 import secrets as pysecrets
 import requests
