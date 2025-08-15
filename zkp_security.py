@@ -6,8 +6,33 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass
 import os
 import requests
+import re
 from security.normalizer import normalize_prompt, NORMALIZER_VERSION
 from security.policy_dfa import PolicyDFA, load_policy_terms
+
+# Default policy terms used by DFA when no external terms file is provided
+DEFAULT_POLICY_TERMS: List[str] = [
+    "ignore previous instructions",
+    "system prompt",
+    "/etc/passwd",
+    "admin password",
+    "api key",
+    "private key",
+    "token",
+    "reveal secrets",
+    "leak secrets",
+    "no filter",
+    "no restrictions",
+    "unrestricted",
+    "jailbreak",
+    "override rules",
+    "disable logging",
+    "prompt injection",
+    "show password",
+    "output system prompt",
+    "bypass",
+    "disregard"
+]
 
 @dataclass
 class ZKProof:
@@ -31,9 +56,9 @@ class ZKPSecurity:
             self.zkp_min_score: float = float(os.getenv("ZKP_MIN_SCORE", "0.6"))
         except Exception:
             self.zkp_min_score = 0.6
-        # DFA policy terms (optional)
+        # DFA policy terms (optional) with sensible defaults
         terms_path = os.getenv("POLICY_TERMS_PATH")
-        terms = load_policy_terms(terms_path) if terms_path else []
+        terms = load_policy_terms(terms_path) if terms_path else DEFAULT_POLICY_TERMS
         self.policy_dfa = PolicyDFA(terms)
     
     def _hash_data(self, data: str) -> str:
@@ -118,30 +143,45 @@ class ZKPSecurity:
         
         # High-risk adversarial patterns (major penalty)
         high_risk_patterns = [
-            "ignore previous", "bypass", "system prompt", "act as admin", 
-            "roleplay as", "admin password", "secret", "override", "disregard",
-            "/etc/passwd", "api key", "private key", "token"
+            "ignore previous", "ignore all", "bypass", "system prompt",
+            "act as admin", "roleplay as", "admin password", "secret", "override", "disregard",
+            "/etc/passwd", "api key", "private key", "token", "reveal secrets", "leak secrets",
+            "jailbreak", "unrestricted", "no filter", "no restrictions", "disable logging",
+            "output system prompt", "show password", "prompt injection"
         ]
         
         # Medium-risk patterns (moderate penalty)
         medium_risk_patterns = [
-            "ignore", "act as", "roleplay", "admin", "password", "secret"
+            "ignore", "act as", "roleplay", "admin", "password", "secret",
+            "simulate", "pretend", "unfiltered", "no rules", "no guidelines", "show prompt"
         ]
         
-        # Check high-risk patterns first
+        # Check high-risk patterns (count all)
         for pattern in high_risk_patterns:
             if pattern in prompt_lower:
-                score -= 0.4  # Major penalty for high-risk patterns
+                score -= 0.4
         
         # Check medium-risk patterns
         for pattern in medium_risk_patterns:
             if pattern in prompt_lower:
-                score -= 0.2  # Moderate penalty
+                score -= 0.2
         
-        # Check safety rules
+        # Cross-token signals
+        if ("ignore" in prompt_lower and "instruction" in prompt_lower):
+            score -= 0.3
+        # Dialogue-style wrapper often used for indirect injection
+        if ("user:" in prompt_lower and ("assistant:" in prompt_lower or "system:" in prompt_lower)):
+            score -= 0.2
+        # Base64 / encoding hints
+        if "base64" in prompt_lower:
+            score -= 0.2
+        if re.search(r"%[0-9a-fA-F]{2}", prompt_lower):
+            score -= 0.1
+        
+        # Check safety rules tokens explicitly present
         for rule in safety_rules:
             if rule.lower() in prompt_lower:
-                score -= 0.3
+                score -= 0.2
         
         return max(0.0, score)
     
