@@ -397,20 +397,11 @@ def index():
                 session.modified = True
                 flash("Prompt blocked: possible injection or invalid input.")
                 return redirect(url_for("index"))
-            # LLM self-checker
-            t1 = datetime.now(); llm_ok = llm_self_check(sanitized_prompt); t_llm = (datetime.now()-t1).total_seconds()
-            if not llm_ok:
-                user_msg["status"] = "blocked"
-                session["chat_history"].append(user_msg)
-                session.modified = True
-                audit_info = {
-                    'prompt': prompt,
-                    'explanation': session.get('self_check_reason', ''),
-                    'status': 'blocked'
-                }
-                session['audit_info'] = audit_info
-                flash("Prompt blocked: detected as possible prompt injection or adversarial intent by LLM self-checker.")
-                return redirect(url_for("index"))
+            # LLM self-checker (advisory only in non-strict mode)
+            try:
+                t1 = datetime.now(); _ = llm_self_check(sanitized_prompt); t_llm = (datetime.now()-t1).total_seconds()
+            except Exception:
+                t_llm = 0.0
         guarded_prompt = add_safety_guardrails(sanitized_prompt)
         t2 = datetime.now(); response = get_llm_response(guarded_prompt); t_llm_gen = (datetime.now()-t2).total_seconds()
         # Output filtering

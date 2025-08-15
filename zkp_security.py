@@ -26,6 +26,11 @@ class ZKPSecurity:
         self.snark_prover_url: Optional[str] = os.getenv("SNARK_PROVER_URL")
         self.snark_verify_url: Optional[str] = os.getenv("SNARK_VERIFY_URL")
         self.snark_policy_id: str = os.getenv("SNARK_POLICY_ID", "default")
+        # ZKP threshold configurable
+        try:
+            self.zkp_min_score: float = float(os.getenv("ZKP_MIN_SCORE", "0.6"))
+        except Exception:
+            self.zkp_min_score = 0.6
         # DFA policy terms (optional)
         terms_path = os.getenv("POLICY_TERMS_PATH")
         terms = load_policy_terms(terms_path) if terms_path else []
@@ -154,8 +159,8 @@ class ZKPSecurity:
             if proof.challenge != expected_challenge:
                 return False
             
-            # Stricter safety threshold - block anything below 0.6
-            if proof.metadata.get("safety_score", 0) < 0.6:
+            # Configurable safety threshold (default 0.6)
+            if proof.metadata.get("safety_score", 0) < self.zkp_min_score:
                 return False
             
             return True
