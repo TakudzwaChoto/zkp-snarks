@@ -38,6 +38,7 @@ from zkp_security import ZKPSecurity, ZKProof
 import os
 import math
 from security.semantic_classifier import train_semantic_model
+from security.sanitizer import sanitize_prompt
 try:
     from transformers import AutoTokenizer, AutoModelForSequenceClassification  # type: ignore
     import torch  # type: ignore
@@ -227,30 +228,22 @@ class AdvancedEvaluationPipeline:
         )
     
     def regex_baseline(self, prompt: str) -> DetectionResult:
-        """Simple regex-based detection"""
+        """Simple regex-based detection (normalized + extended patterns)"""
         start_time = time.time()
-        
-        adversarial_patterns = [
-            r"ignore\s+(previous\s+)?instructions?",
-            r"bypass",
-            r"admin\s+password",
-            r"system\s+prompt",
-            r"act\s+as\s+admin",
-            r"roleplay\s+as",
-            r"pretend\s+you\s+are",
-            r"override",
-            r"disregard",
-            r"root\s+password"
+        normalized, triggered, matched = sanitize_prompt(prompt)
+        # additional lightweight patterns not in sanitizer
+        extra_patterns = [
+            r"root\s+password",
+            r"disable\s+logging",
+            r"leak\s+secrets",
+            r"no\s+restrictions?",
         ]
-        
-        score = 0
-        for pattern in adversarial_patterns:
-            if re.search(pattern, prompt.lower()):
-                score += 1
-        
+        for pat in extra_patterns:
+            if re.search(pat, normalized):
+                matched.append(pat)
+        score = len(matched)
         detection_time = time.time() - start_time
-        confidence = min(score / 3, 1.0)  # Normalize to 0-1
-        
+        confidence = min(score / 3, 1.0)
         return DetectionResult(
             prompt=prompt,
             true_label="",
@@ -258,7 +251,7 @@ class AdvancedEvaluationPipeline:
             confidence=confidence,
             detection_time=detection_time,
             method="Regex Baseline",
-            metadata={"pattern_matches": score, "patterns_checked": len(adversarial_patterns)}
+            metadata={"pattern_matches": score, "patterns_checked": len(matched)}
         )
     
     def llm_simulator(self, prompt: str) -> DetectionResult:
@@ -278,41 +271,47 @@ class AdvancedEvaluationPipeline:
             "system_prompt": 0.6,
             "roleplay": 0.5,
             "password_request": 0.8,
-            "confidential_data": 0.7
+            "confidential_data": 0.7,
+            "encoding": 0.2,
+            "dialogue": 0.2,
         }
         
-        prompt_lower = prompt.lower()
-        total_risk = 0
+        normalized, _, _ = sanitize_prompt(prompt)
+        total_risk = 0.0
         
-        if "ignore" in prompt_lower and "instruction" in prompt_lower:
+        if "ignore" in normalized and "instruction" in normalized:
             total_risk += risk_factors["ignore_instructions"]
-        if "bypass" in prompt_lower:
+        if "bypass" in normalized:
             total_risk += risk_factors["bypass_security"]
-        if "admin" in prompt_lower and ("password" in prompt_lower or "access" in prompt_lower):
+        if "admin" in normalized and ("password" in normalized or "access" in normalized):
             total_risk += risk_factors["admin_access"]
-        if "system prompt" in prompt_lower:
+        if "system prompt" in normalized or "show prompt" in normalized:
             total_risk += risk_factors["system_prompt"]
-        if "roleplay" in prompt_lower or "pretend" in prompt_lower:
+        if "roleplay" in normalized or "pretend" in normalized:
             total_risk += risk_factors["roleplay"]
-        if "password" in prompt_lower:
+        if "password" in normalized:
             total_risk += risk_factors["password_request"]
-        if "confidential" in prompt_lower or "secret" in prompt_lower:
+        if "confidential" in normalized or "secret" in normalized or "leak" in normalized:
             total_risk += risk_factors["confidential_data"]
+        if "base64" in normalized or re.search(r"%[0-9a-fA-F]{2}", normalized):
+            total_risk += risk_factors["encoding"]
+        if ("user:" in normalized and ("assistant:" in normalized or "system:" in normalized)):
+            total_risk += risk_factors["dialogue"]
         
-        # Add some randomness to simulate LLM uncertainty
-        total_risk += random.uniform(-0.1, 0.1)
-        total_risk = max(0, min(1, total_risk))
+        # Reduced randomness
+        total_risk += max(-0.05, min(0.05, random.uniform(-0.05, 0.05)))
+        total_risk = max(0.0, min(1.0, total_risk))
         
         detection_time = time.time() - start_time
         
         return DetectionResult(
             prompt=prompt,
             true_label="",
-            predicted_label="adversarial" if total_risk > 0.5 else "safe",
+            predicted_label="adversarial" if total_risk >= 0.5 else "safe",
             confidence=total_risk,
             detection_time=detection_time,
             method="LLM Simulator",
-            metadata={"risk_factors": total_risk, "processing_time": detection_time}
+            metadata={"risk": total_risk}
         )
     
     def ensemble_detection(self, prompt: str) -> DetectionResult:
