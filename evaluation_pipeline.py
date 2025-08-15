@@ -644,6 +644,21 @@ class AdvancedEvaluationPipeline:
                 r.true_label = label
                 results.append(r)
             all_results[name] = results
+        # Optional: semantic classifier (TF-IDF+LR or heuristic fallback)
+        try:
+            from security.semantic_classifier import train_semantic_model
+            if os.getenv('ENABLE_SEMANTIC', 'true').lower() == 'true':
+                print("\n📊 Training/Evaluating Semantic Classifier...\n")
+                model = train_semantic_model(self.test_dataset)
+                sc_results: List[DetectionResult] = []
+                for prompt, label in self.test_dataset:
+                    # predict_proba returns prob of class 1 (adversarial)
+                    prob = float(model.predict_proba([prompt])[0]) if hasattr(model, 'predict_proba') else 0.5
+                    pred = 'adversarial' if prob >= 0.5 else 'safe'
+                    sc_results.append(DetectionResult(prompt, label, pred, prob, 0.0, 'Semantic Classifier', {}))
+                all_results['Semantic Classifier'] = sc_results
+        except Exception as e:
+            print(f"Semantic classifier skipped: {e}")
         print("\n" + "="*80)
         print("📈 COMPREHENSIVE EVALUATION RESULTS")
         print("="*80)
