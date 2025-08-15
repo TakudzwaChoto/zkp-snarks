@@ -669,6 +669,24 @@ class AdvancedEvaluationPipeline:
         print(f"Saved metrics: {metrics_path}\nSaved details: {details_path}")
         print("\n✅ Evaluation Pipeline Complete!\n============================================================")
 
+    def print_detailed_analysis(self, method_name: str, results: List[DetectionResult]) -> None:
+        tp = sum(1 for r in results if r.true_label == 'adversarial' and r.predicted_label == 'adversarial')
+        tn = sum(1 for r in results if r.true_label == 'safe' and r.predicted_label == 'safe')
+        fp = sum(1 for r in results if r.true_label == 'safe' and r.predicted_label == 'adversarial')
+        fn = sum(1 for r in results if r.true_label == 'adversarial' and r.predicted_label == 'safe')
+        avg_time_ms = (sum(r.detection_time for r in results) / max(1, len(results))) * 1000
+        print(f"📊 {method_name}:")
+        print(f"  • True Positives: {tp}")
+        print(f"  • True Negatives: {tn}")
+        print(f"  • False Positives: {fp}")
+        print(f"  • False Negatives: {fn}")
+        print(f"  • Average Detection Time: {avg_time_ms:.2f}ms")
+        # show one FN example if exists
+        for r in results:
+            if r.true_label == 'adversarial' and r.predicted_label == 'safe':
+                print(f"  • False Negative Example: '{r.prompt[:120]}'")
+                break
+
 if __name__ == "__main__":
     # Run the complete evaluation
     pipeline = AdvancedEvaluationPipeline()
