@@ -266,7 +266,9 @@ class AdvancedEvaluationPipeline:
         start_time = time.time()
         
         # Simulate LLM processing time
-        time.sleep(0.1)
+        import os as _os
+        if _os.getenv('FAST_EVAL', 'false').lower() != 'true':
+            time.sleep(0.1)
         
         # Complex pattern analysis
         risk_factors = {
