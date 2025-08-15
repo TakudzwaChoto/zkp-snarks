@@ -200,3 +200,89 @@ python run_evaluation.py -d data/synth_50k.json
 - DFA/token set expansion + semantic classifiers
 - Auto threshold tuner and per‑layer PR/ROC reporting
 - CI + non‑root containers + healthchecks (done) and staging pipelines
+
+## Mathematical foundations (concise)
+
+- Commitment on normalized prompt
+  - Let raw prompt be x and normalized prompt be \(\tilde{x} = \mathrm{normalize}(x)\). We sample a nonce \(r\).
+  - Commitment: \[ c = H(\tilde{x} \parallel r) \]
+- Challenge (binds rules and time)
+  - Let \(R\) be the sorted list of safety rules. \[ \mathrm{ch} = H\!\big(c \parallel H(\mathrm{json}(R)) \parallel t\big) \]
+- Response (metadata integrity)
+  - With metadata \(m = \{\text{len},\, s,\, |R|,\, t,\, v_N\}\), where \(s\) is the safety score and \(v_N\) the normalizer version:
+  - \[ \rho = H(\mathrm{json}(m)) \]
+- Verification checks
+  - Freshness: \( |\mathrm{now} - t| \leq \Delta_T \) (e.g., 300 s)
+  - Challenge consistency: \(\mathrm{ch} \overset{?}{=} H\!\big(c \parallel H(\mathrm{json}(R)) \parallel t\big)\)
+  - Threshold: \( s \ge \tau \), where \(\tau = \texttt{ZKP\_MIN\_SCORE}\)
+- Heuristic safety score (used inside ZKP metadata)
+  - DFA term match indicator \(\mathbb{1}_{\mathrm{DFA}}(\tilde{x})\)
+  - High/medium risk pattern indicators \(\mathbb{1}_i(\tilde{x})\)
+  - Cross-signals (dialogue wrappers, encodings) \(\mathbb{1}_j(\tilde{x})\)
+  - \[ s = \max\Big(0,\, 1 - \alpha\,\mathbb{1}_{\mathrm{DFA}} - \sum_i \beta_i\,\mathbb{1}_i - \sum_j \gamma_j\,\mathbb{1}_j \Big) \]
+- SNARK (optional)
+  - \(\mathrm{Verify}(vk, \pi, \mathrm{pub}) \in \{\texttt{true}, \texttt{false}\}\) for policy compliance on \(\tilde{x}\) without revealing it.
+- Privacy-preserving log (tamper-evident)
+  - For interaction i with prompt/response commitments \(c^{p}_i, c^{r}_i\) and previous hash \(h_{i-1}\):
+  - \[ h_i = H\!\big(c^{p}_i \parallel c^{r}_i \parallel h_{i-1}\big),\quad \sigma_i = \mathrm{Sign}_{sk}(h_i) \]
+
+## Detailed stage-by-stage flow (how it works)
+
+```mermaid
+flowchart TD
+  A[User Prompt x] --> N[Normalize \n \n\t\tilde{x}=normalize(x)]
+  N --> S[Sanitizer + DFA \n pattern checks]
+  N --> Z[ZKP: (c, ch, ρ, s, t) \n s>=τ?]
+  N --> K[SNARK: policy proof \n optional]
+  S --> D{Decision}
+  Z --> D
+  K --> D
+  D -- blocked --> B[Flash + Audit + Logs]
+  D -- allowed --> G[Guardrail Prompt]
+  G --> LLM[Model (Ollama/OpenAI)]
+  LLM --> OF[Output Filter]
+  OF -- blocked --> B
+  OF -- allowed --> LOG[Encrypted Log \n AES-GCM + hash-chain + Ed25519]
+  LOG --> UI[UI Audit Card]
+```
+
+### Stage semantics
+1. Normalize: lowercase, de-leetspeak, homoglyph folding, whitespace collapse.
+2. Sanitizer/DFA: fast pattern/phrase checks; DFA uses precise terms with boundary safeguards.
+3. ZKP: compute commitment, challenge, metadata (safety score s), and verify \(s\ge \tau\).
+4. SNARK (optional): remote/local proof for policy compliance.
+5. Decision: block on any failing layer (or stricter policy in strict mode); otherwise continue.
+6. Guardrail prompt: prepend safety prefix.
+7. Model call: bounded timeouts; configurable base URL/model.
+8. Output filter: block sensitive tokens/structures.
+9. Log: AES-GCM encryption, hash chaining, Ed25519 signature.
+
+## Metrics (definitions)
+- Accuracy: \( \frac{TP+TN}{TP+TN+FP+FN} \)
+- Precision: \( \frac{TP}{TP+FP} \)
+- Recall: \( \frac{TP}{TP+FN} \)
+- F1: \( 2\cdot\frac{\mathrm{Prec}\cdot\mathrm{Rec}}{\mathrm{Prec}+\mathrm{Rec}} \)
+
+## Evaluation recipes (reproducible)
+- Generate 4k dataset (balanced):
+```bash
+python data/generate_synthetic_dataset.py -b 2000 -a 2000 -f json -o data/synth_4k.json --seed 42
+```
+- Run fast (no plots):
+```bash
+FAST_EVAL=true SKIP_PLOTS=true python run_evaluation.py -d data/synth_4k.json
+```
+- Run with figures (install numpy+pandas+sklearn+matplotlib+seaborn; headless: set MPLBACKEND=Agg):
+```bash
+SKIP_PLOTS=false python run_evaluation.py -d data/synth_4k.json
+```
+
+## Tuning knobs (practical)
+- Thresholds: \(\tau=\) `ZKP_MIN_SCORE` (default 0.6)
+- DFA terms: set `POLICY_TERMS_PATH` to a JSON list of precise phrases (normalized, lowercase)
+- Strict mode: toggles LLM self-check gating in the UI
+- Transformer: `ENABLE_TRANSFORMER=true` (falls back heuristically if not installed)
+
+## Threat model vs guarantees (summary)
+- Guarantees: commitment integrity on normalized prompts; thresholded safety scoring; optional policy SNARK; tamper-evident logging.
+- Non-goals: perfect semantic understanding; zero false negatives under heavy obfuscation; trusted-setup caveats for SNARK (if used).
