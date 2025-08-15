@@ -38,6 +38,13 @@ from zkp_security import ZKPSecurity, ZKProof
 import os
 import math
 from security.semantic_classifier import train_semantic_model
+try:
+    from transformers import AutoTokenizer, AutoModelForSequenceClassification  # type: ignore
+    import torch  # type: ignore
+except Exception:
+    AutoTokenizer = None
+    AutoModelForSequenceClassification = None
+    torch = None
 
 @dataclass
 class DetectionResult:
@@ -52,9 +59,23 @@ class DetectionResult:
 class AdvancedEvaluationPipeline:
     def __init__(self, dataset_path: Optional[str] = None):
         self.zkp_security = ZKPSecurity()
-        self.results = []
-        self.dataset_path = dataset_path
         self.test_dataset = self._load_comprehensive_dataset() if not dataset_path else self._load_external_dataset(dataset_path)
+        self.dataset_path = dataset_path
+        self.dataset_name = (dataset_path.split('/')[-1].replace('.json','').replace('.csv','')) if dataset_path else 'built_in'
+        # Optional transformer model
+        self.transformer_model_name = os.getenv('TRANSFORMER_MODEL', 'distilroberta-base')
+        self.transformer_threshold = float(os.getenv('TRANSFORMER_THRESHOLD', '0.5'))
+        self.transformer_enabled = os.getenv('ENABLE_TRANSFORMER', 'false').lower() == 'true'
+        self._tf_tokenizer = None
+        self._tf_model = None
+        if self.transformer_enabled and AutoTokenizer is not None and AutoModelForSequenceClassification is not None:
+            try:
+                self._tf_tokenizer = AutoTokenizer.from_pretrained(self.transformer_model_name)
+                self._tf_model = AutoModelForSequenceClassification.from_pretrained(self.transformer_model_name, num_labels=2)
+                self._tf_model.eval()
+            except Exception as e:
+                print(f"Transformer disabled (load error): {e}")
+                self.transformer_enabled = False
         # Allow env override of ZKP threshold
         thr = os.getenv("ZKP_THRESHOLD")
         if thr:
@@ -329,6 +350,25 @@ class AdvancedEvaluationPipeline:
             }
         )
     
+    def transformer_detection(self, prompt: str) -> DetectionResult:
+        """Transformer-based classifier; returns probability as confidence."""
+        start_time = time.time()
+        try:
+            if not self.transformer_enabled or self._tf_model is None or self._tf_tokenizer is None or torch is None:
+                # Fallback: heuristic on normalized prompt
+                prob = 1.0 if any(k in prompt.lower() for k in ("ignore","bypass","admin","password","system prompt")) else 0.0
+                label = 'adversarial' if prob >= self.transformer_threshold else 'safe'
+                return DetectionResult(prompt=prompt, true_label='', predicted_label=label, confidence=prob, detection_time=time.time()-start_time, method='Transformer (heuristic)', metadata={})
+            inputs = self._tf_tokenizer(prompt, truncation=True, padding=True, max_length=256, return_tensors='pt')
+            with torch.no_grad():
+                logits = self._tf_model(**inputs).logits
+                probs = torch.softmax(logits, dim=-1).cpu().numpy()[0]
+            prob_adv = float(probs[1])  # assume label 1 is adversarial
+            label = 'adversarial' if prob_adv >= self.transformer_threshold else 'safe'
+            return DetectionResult(prompt=prompt, true_label='', predicted_label=label, confidence=prob_adv, detection_time=time.time()-start_time, method='Transformer', metadata={'model': self.transformer_model_name})
+        except Exception as e:
+            return DetectionResult(prompt=prompt, true_label='', predicted_label='error', confidence=0.0, detection_time=time.time()-start_time, method='Transformer', metadata={'error': str(e)})
+    
     def run_evaluation(self) -> Dict[str, Any]:
         """Run comprehensive evaluation"""
         print("🔬 Starting Advanced Evaluation Pipeline...")
@@ -582,69 +622,40 @@ class AdvancedEvaluationPipeline:
     def run_complete_evaluation(self):
         """Run the complete evaluation pipeline"""
         print("\n🚀 Starting Complete Evaluation Pipeline")
-        print("=" * 60)
-        
+        print("============================================================")
         print("🔬 Starting Advanced Evaluation Pipeline...")
-        print("=" * 60)
-        
-        all_results = {
-            "ZKP Framework": [],
-            "Regex Baseline": [],
-            "LLM Simulator": [],
-            "Ensemble": []
+        print("============================================================\n")
+        methods = {
+            "ZKP Framework": self.zkp_detection,
+            "Regex Baseline": self.regex_baseline,
+            "LLM Simulator": self.llm_simulator,
         }
-        
-        print("\n📊 Evaluating ZKP Framework...")
-        for prompt, true_label in self.test_dataset:
-            res = self.zkp_detection(prompt)
-            res.true_label = true_label
-            all_results["ZKP Framework"].append(res)
-        
-        print("\n📊 Evaluating Regex Baseline...")
-        for prompt, true_label in self.test_dataset:
-            res = self.regex_baseline(prompt)
-            res.true_label = true_label
-            all_results["Regex Baseline"].append(res)
-        
-        print("\n📊 Evaluating LLM Simulator...")
-        for prompt, true_label in self.test_dataset:
-            res = self.llm_simulator(prompt)
-            res.true_label = true_label
-            all_results["LLM Simulator"].append(res)
-        
-        # Optional: Train/evaluate semantic classifier on large datasets
-        if len(self.test_dataset) >= 5000:
-            try:
-                print("\n📊 Training Semantic Classifier (TF-IDF + Logistic)...")
-                model = train_semantic_model(self.test_dataset)
-                # Evaluate inline by mapping probability to label with 0.5 threshold
-                sc_results = []
-                for prompt, true_label in self.test_dataset:
-                    prob = float(model.predict_proba([prompt])[0])
-                    pred = "adversarial" if prob >= 0.5 else "safe"
-                    sc_results.append(DetectionResult(prompt, true_label, pred, prob, 0.0, "Semantic Classifier", {}))
-                all_results["Semantic Classifier"] = sc_results
-            except Exception as e:
-                print(f"Semantic classifier skipped: {e}")
-        
-        print("\n📊 Evaluating Ensemble...")
-        for i, (prompt, true_label) in enumerate(self.test_dataset):
-            # Simple OR ensemble over methods for recall boost
-            zkp_res = all_results["ZKP Framework"][i]
-            re_res = all_results["Regex Baseline"][i]
-            llm_res = all_results["LLM Simulator"][i]
-            adversarial_votes = sum([zkp_res.predicted_label == "adversarial", re_res.predicted_label == "adversarial", llm_res.predicted_label == "adversarial"])
-            predicted = "adversarial" if adversarial_votes >= 1 else "safe"
-            confidence = max(zkp_res.confidence, re_res.confidence, llm_res.confidence)
-            all_results["Ensemble"].append(DetectionResult(prompt, true_label, predicted, confidence, max(zkp_res.detection_time, re_res.detection_time, llm_res.detection_time), "Ensemble", {"votes": adversarial_votes}))
-        
+        if self.transformer_enabled:
+            methods["Transformer"] = self.transformer_detection
+        methods["Ensemble"] = self.ensemble_detection
+        all_results: Dict[str, List[DetectionResult]] = {}
+        for name, func in methods.items():
+            print(f"📊 Evaluating {name}...\n")
+            results: List[DetectionResult] = []
+            for prompt, label in self.test_dataset:
+                r = func(prompt)
+                r.true_label = label
+                results.append(r)
+            all_results[name] = results
+        print("\n" + "="*80)
+        print("📈 COMPREHENSIVE EVALUATION RESULTS")
+        print("="*80)
         metrics = self.print_results(all_results)
-        
-        # Create visualizations
+        print("\n" + "="*80)
+        print("🔍 DETAILED ANALYSIS")
+        print("="*80 + "\n")
+        for method_name, results in all_results.items():
+            self.print_detailed_analysis(method_name, results)
+            print("\n")
         fig = self.create_visualizations(all_results, metrics)
-        
         # Save results
-        ds_tag = self.dataset_path.split('/')[-1].replace('.json', '').replace('.csv', '') if self.dataset_path else 'built_in'
+        ds_tag = self.dataset_name
+        from datetime import datetime
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         metrics_path = f"evaluation_metrics_{ds_tag}_{timestamp}.csv"
         details_path = f"detailed_results_{ds_tag}_{timestamp}.csv"
@@ -654,9 +665,7 @@ class AdvancedEvaluationPipeline:
         else:
             print("Skipping plot saving due to plot generation failure.")
         print(f"Saved metrics: {metrics_path}\nSaved details: {details_path}")
-        
-        print("\n✅ Evaluation Pipeline Complete!")
-        print("=" * 60)
+        print("\n✅ Evaluation Pipeline Complete!\n============================================================")
 
 if __name__ == "__main__":
     # Run the complete evaluation
