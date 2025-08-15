@@ -202,30 +202,37 @@ python run_evaluation.py -d data/synth_50k.json
 - CI + non‑root containers + healthchecks (done) and staging pipelines
 
 ## Mathematical foundations (concise)
+### Commitment on normalized prompt
+- Let raw prompt be `x` and normalized prompt be `x̃ = normalize(x)`. We sample a nonce `r`.
+- Commitment: `c = H(x̃ || r)`
 
-- Commitment on normalized prompt
-  - Let raw prompt be x and normalized prompt be \(\tilde{x} = \mathrm{normalize}(x)\). We sample a nonce \(r\).
-  - Commitment: \[ c = H(\tilde{x} \parallel r) \]
-- Challenge (binds rules and time)
-  - Let \(R\) be the sorted list of safety rules. \[ \mathrm{ch} = H\!\big(c \parallel H(\mathrm{json}(R)) \parallel t\big) \]
-- Response (metadata integrity)
-  - With metadata \(m = \{\text{len},\, s,\, |R|,\, t,\, v_N\}\), where \(s\) is the safety score and \(v_N\) the normalizer version:
-  - \[ \rho = H(\mathrm{json}(m)) \]
-- Verification checks
-  - Freshness: \( |\mathrm{now} - t| \leq \Delta_T \) (e.g., 300 s)
-  - Challenge consistency: \(\mathrm{ch} \overset{?}{=} H\!\big(c \parallel H(\mathrm{json}(R)) \parallel t\big)\)
-  - Threshold: \( s \ge \tau \), where \(\tau = \texttt{ZKP\_MIN\_SCORE}\)
-- Heuristic safety score (used inside ZKP metadata)
-  - DFA term match indicator \(\mathbb{1}_{\mathrm{DFA}}(\tilde{x})\)
-  - High/medium risk pattern indicators \(\mathbb{1}_i(\tilde{x})\)
-  - Cross-signals (dialogue wrappers, encodings) \(\mathbb{1}_j(\tilde{x})\)
-  - \[ s = \max\Big(0,\, 1 - \alpha\,\mathbb{1}_{\mathrm{DFA}} - \sum_i \beta_i\,\mathbb{1}_i - \sum_j \gamma_j\,\mathbb{1}_j \Big) \]
-- SNARK (optional)
-  - \(\mathrm{Verify}(vk, \pi, \mathrm{pub}) \in \{\texttt{true}, \texttt{false}\}\) for policy compliance on \(\tilde{x}\) without revealing it.
-- Privacy-preserving log (tamper-evident)
-  - For interaction i with prompt/response commitments \(c^{p}_i, c^{r}_i\) and previous hash \(h_{i-1}\):
-  - \[ h_i = H\!\big(c^{p}_i \parallel c^{r}_i \parallel h_{i-1}\big),\quad \sigma_i = \mathrm{Sign}_{sk}(h_i) \]
-  - 
+### Challenge (binds rules and time)
+- Let `R` be the sorted list of safety rules.
+- Challenge: `ch = H(c || H(json(R)) || t)`
+
+### Response (metadata integrity)
+- With metadata `m = {len, s, |R|, t, v_N}`, where `s` is the safety score and `v_N` the normalizer version:
+- Response: `ρ = H(json(m))`
+
+### Verification checks
+- Freshness: `|now - t| ≤ Δ_T` (e.g., 300 s)
+- Challenge consistency: `ch ?= H(c || H(json(R)) || t)`
+- Threshold: `s ≥ τ`, where `τ = ZKP_MIN_SCORE`
+
+### Heuristic safety score
+- DFA term match indicator: `𝟙_DFA(x̃)`
+- Risk pattern indicators: `𝟙_i(x̃)`
+- Cross-signals: `𝟙_j(x̃)`
+- Score: `s = max(0, 1 - α𝟙_DFA - Σβ_i𝟙_i - Σγ_j𝟙_j)`
+
+### SNARK (optional)
+- `Verify(vk, π, pub) ∈ {true, false}` for policy compliance on `x̃`
+
+### Privacy-preserving log
+- For interaction i with commitments `cⁱ_p, cⁱ_r` and previous hash `h_{i-1}`:
+- `h_i = H(cⁱ_p || cⁱ_r || h_{i-1})`
+- `σ_i = Sign_sk(h_i)`
+- 
 ## Detailed stage-by-stage flow (how it works)
 
 ```mermaid
