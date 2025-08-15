@@ -228,22 +228,22 @@ python run_evaluation.py -d data/synth_50k.json
   - 
 ## Detailed stage-by-stage flow (how it works)
 
-```bash
+```mermaid
 flowchart TD
-  A["User Prompt x"] --> N["Normalize <br/><br/> x̃ = normalize(x)"]
-  N --> S["Sanitizer + DFA <br/> pattern checks"]
-  N --> Z["ZKP: (c, ch, ρ, s, t) <br/> s ≥ τ?"]
-  N --> K["SNARK: policy proof <br/> optional"]
-  S --> D{"Decision"}
-  Z --> D
-  K --> D
-  D -- blocked --> B["Flash + Audit + Logs"]
-  D -- allowed --> G["Guardrail Prompt"]
-  G --> LLM["Model (Ollama/OpenAI)"]
-  LLM --> OF["Output Filter"]
-  OF -- blocked --> B
-  OF -- allowed --> LOG["Encrypted Log <br/> AES-GCM + hash-chain + Ed25519"]
-  LOG --> UI["UI Audit Card"]
+    A[User Input] --> B[Normalize Input]
+    B --> C[Sanitization Check]
+    B --> D[Zero-Knowledge Proof]
+    B --> E[Policy Proof]
+    C --> F{Decision}
+    D --> F
+    E --> F
+    F -->|Reject| G[Block + Log]
+    F -->|Approve| H[Send to LLM]
+    H --> I[Model Processing]
+    I --> J[Output Filter]
+    J -->|Reject| G
+    J -->|Approve| K[Secure Logging]
+    K --> L[Audit Interface]
 ```
 
 ### Stage semantics
