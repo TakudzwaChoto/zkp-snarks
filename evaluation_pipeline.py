@@ -620,6 +620,77 @@ class AdvancedEvaluationPipeline:
             details_df = pd.DataFrame(rows)
             details_df.to_csv(details_path, index=False)
     
+    def _compute_curves(self, results: List[DetectionResult]) -> Dict[str, List[float]]:
+        # Build arrays
+        y_true = [1 if r.true_label == "adversarial" else 0 for r in results]
+        scores = [float(r.confidence) for r in results]
+        # Threshold grid
+        thresholds = [i/100.0 for i in range(0, 101)]
+        precisions: List[float] = []
+        recalls: List[float] = []
+        f1s: List[float] = []
+        tprs: List[float] = []
+        fprs: List[float] = []
+        for thr in thresholds:
+            y_pred = [1 if s >= thr else 0 for s in scores]
+            tp = sum(1 for yt, yp in zip(y_true, y_pred) if yt == 1 and yp == 1)
+            fp = sum(1 for yt, yp in zip(y_true, y_pred) if yt == 0 and yp == 1)
+            fn = sum(1 for yt, yp in zip(y_true, y_pred) if yt == 1 and yp == 0)
+            tn = sum(1 for yt, yp in zip(y_true, y_pred) if yt == 0 and yp == 0)
+            prec = tp / (tp + fp) if (tp + fp) else 0.0
+            rec = tp / (tp + fn) if (tp + fn) else 0.0
+            f1 = (2 * prec * rec / (prec + rec)) if (prec + rec) else 0.0
+            tpr = rec
+            fpr = fp / (fp + tn) if (fp + tn) else 0.0
+            precisions.append(prec)
+            recalls.append(rec)
+            f1s.append(f1)
+            tprs.append(tpr)
+            fprs.append(fpr)
+        return {
+            "thresholds": thresholds,
+            "precision": precisions,
+            "recall": recalls,
+            "f1": f1s,
+            "tpr": tprs,
+            "fpr": fprs,
+        }
+
+    def _save_curves_csv(self, method_name: str, ds_tag: str, curves: Dict[str, List[float]]):
+        path = f"curves_{method_name.replace(' ', '_').lower()}_{ds_tag}.csv"
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write("threshold,precision,recall,f1,tpr,fpr\n")
+            for i, thr in enumerate(curves["thresholds"]):
+                f.write(f"{thr},{curves['precision'][i]},{curves['recall'][i]},{curves['f1'][i]},{curves['tpr'][i]},{curves['fpr'][i]}\n")
+
+    def _recommend_threshold(self, curves: Dict[str, List[float]], min_recall: float = 0.9) -> float:
+        best_thr = 0.6
+        best_f1 = -1.0
+        for thr, rec, f1 in zip(curves['thresholds'], curves['recall'], curves['f1']):
+            if rec >= min_recall and f1 > best_f1:
+                best_f1 = f1
+                best_thr = thr
+        # If none meet recall, pick max F1
+        if best_f1 < 0:
+            idx = max(range(len(curves['f1'])), key=lambda i: curves['f1'][i])
+            best_thr = curves['thresholds'][idx]
+        return round(best_thr, 2)
+
+    def generate_pr_roc(self, all_results: Dict[str, List[DetectionResult]], ds_tag: str):
+        # Compute and save curves for each method that has a usable confidence
+        for method_name, results in all_results.items():
+            if not results:
+                continue
+            # Skip methods with degenerate confidence (optional)
+            try:
+                curves = self._compute_curves(results)
+                self._save_curves_csv(method_name, ds_tag, curves)
+                if method_name == 'ZKP Framework':
+                    thr = self._recommend_threshold(curves, min_recall=float(os.getenv('TARGET_RECALL', '0.90')))
+                    print(f"🔧 Recommended ZKP_MIN_SCORE ≈ {thr} (target recall {os.getenv('TARGET_RECALL','0.90')})")
+            except Exception:
+                continue
+
     def run_complete_evaluation(self):
         """Run the complete evaluation pipeline"""
         print("\n🚀 Starting Complete Evaluation Pipeline")
@@ -676,6 +747,8 @@ class AdvancedEvaluationPipeline:
         metrics_path = f"evaluation_metrics_{ds_tag}_{timestamp}.csv"
         details_path = f"detailed_results_{ds_tag}_{timestamp}.csv"
         self.save_detailed_results(all_results, metrics)
+        # PR/ROC curves and recommendation
+        self.generate_pr_roc(all_results, ds_tag)
         if fig is not None:
             fig.savefig(f"evaluation_results_{ds_tag}_{timestamp}.png", dpi=160, bbox_inches='tight')
         else:
