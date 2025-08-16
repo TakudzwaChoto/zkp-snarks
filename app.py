@@ -2,7 +2,11 @@ from flask import Flask, request, render_template, redirect, url_for, flash, ses
 from logger import SecureLogger
 from zkp_security import ZKPSecurity, ZKProof
 import os
-from autogen import AssistantAgent, UserProxyAgent
+try:
+	from autogen import AssistantAgent, UserProxyAgent
+except Exception:
+	AssistantAgent = None
+	UserProxyAgent = None
 from dotenv import load_dotenv
 from security.normalizer import normalize_prompt, NORMALIZER_VERSION
 from security.sanitizer import sanitize_prompt
@@ -19,10 +23,10 @@ load_dotenv()
 
 # --- Available LLM Models ---
 AVAILABLE_MODELS = [
-    "tinyllama:1.1b",
-    "llama2:7b",
-    "mistral:7b-instruct",
-    "gemma:2b"
+	"tinyllama:1.1b",
+	"llama2:7b",
+	"mistral:7b-instruct",
+	"gemma:2b"
 ]
 DEFAULT_MODEL = "gemma:2b"
 
@@ -34,25 +38,25 @@ llm_config = {
 }
 
 # --- Agent Setup (optional) ---
-ENABLE_AUTOGEN = os.getenv("ENABLE_AUTOGEN", "false").lower() == "true"
+ENABLE_AUTOGEN = os.getenv("ENABLE_AUTOGEN", "false").lower() == "true" and AssistantAgent is not None and UserProxyAgent is not None
 assistant = None
 user_proxy = None
 if ENABLE_AUTOGEN:
-    try:
-        assistant = AssistantAgent(
-            name="assistant",
-            system_message="""You are a helpful AI assistant. 
-    Respond safely and appropriately to user questions.
-    Keep responses concise and helpful.""",
-            llm_config=llm_config
-        )
-        user_proxy = UserProxyAgent(
-            name="user_proxy",
-            human_input_mode="NEVER",
-            code_execution_config=False,
-        )
-    except Exception as e:
-        print(f"Autogen disabled due to init error: {e}")
+	try:
+		assistant = AssistantAgent(
+			name="assistant",
+			system_message="""You are a helpful AI assistant. 
+	Respond safely and appropriately to user questions.
+	Keep responses concise and helpful.""",
+			llm_config=llm_config
+		)
+		user_proxy = UserProxyAgent(
+			name="user_proxy",
+			human_input_mode="NEVER",
+			code_execution_config=False,
+		)
+	except Exception as e:
+		print(f"Autogen disabled due to init error: {e}")
 
 def get_llm_response(prompt: str) -> str:
     try:
