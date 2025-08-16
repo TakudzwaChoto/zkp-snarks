@@ -124,7 +124,7 @@ sequenceDiagram
 ```mermaid
 flowchart LR
     DS1[Built-in small set]
-    DS2["Synthetic generator\ndata/synthetic_dataset.py"]
+    DS2["Synthetic generator\ndata/generate_synthetic_dataset.py"]
     DS3[Custom JSON/CSV]
     
     DS1 & DS2 & DS3 --> RUN["run_evaluation.py\n(--dataset optional)"]
