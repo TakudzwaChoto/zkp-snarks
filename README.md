@@ -188,6 +188,31 @@ export FLASK_SECRET_KEY=change_me
 python app.py
 ```
 
+### Use with real Ollama
+- Install Ollama: see the [official install guide](https://ollama.com/download)
+- Start the server (in a separate terminal):
+```bash
+ollama serve
+```
+- Pull a compatible model (example: `gemma:2b`):
+```bash
+ollama pull gemma:2b
+```
+- Configure and run the app (OpenAI-compatible endpoint):
+```bash
+export OLLAMA_BASE_URL=http://localhost:11434/v1
+export OLLAMA_MODEL=gemma:2b
+export FLASK_SECRET_KEY=change_me
+python app.py
+```
+- Optional: verify the endpoint is reachable before starting the app:
+```bash
+curl -s -X POST http://localhost:11434/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"gemma:2b","messages":[{"role":"user","content":"Hello"}]}'
+```
+- Docker Compose tip: run Ollama separately on the host and add `OLLAMA_BASE_URL` to the `llm-security` service environment (e.g., `http://host.docker.internal:11434/v1` on macOS/Windows; on Linux, use the host IP or host networking).
+
 ## Run (Docker Compose)
 ```bash
 docker compose up --build
