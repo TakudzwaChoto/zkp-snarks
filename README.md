@@ -11,11 +11,29 @@ This project experiments with multi-layer defenses for LLM prompt injection, com
 - Generate large datasets to improve accuracy/precision/recall:
   - JSON: `python data/generate_synthetic_dataset.py -b 25000 -a 25000 -f json -o data/synth_50k.json`
   - CSV: `python data/generate_synthetic_dataset.py -b 100000 -a 100000 -f csv -o data/synth_200k.csv`
+- Included datasets (ready to use):
+  - `data/synth_50k.json` — 50,000 rows (25k benign / 25k adversarial), ~4.8 MB
+  - `data/synth_4k.json` — 4,000 rows (balanced), ~0.4 MB
+- Schema: `[{"prompt": str, "label": "benign"|"adversarial"}, ...]` (JSON) or CSV columns `prompt,label`
 
 ## Evaluation
 - Built-in small set: `python run_evaluation.py`
 - External dataset: `python run_evaluation.py -d data/synth_50k.json`
 - Outputs include metrics CSV, detailed results CSV, and plots (tagged by dataset name).
+
+- 50k run tips:
+  - For speed: `FAST_EVAL=true SKIP_PLOTS=true python run_evaluation.py -d data/synth_50k.json`
+  - To generate figures: ensure matplotlib+seaborn installed, then `SKIP_PLOTS=false ...`
+
+### 50k benchmark (synth_50k)
+- Summary (from `data/synth_50k.json`):
+  - ZKP Framework — Precision 1.000, Recall 0.720, F1 0.837, Accuracy 0.860 (TP 18,010; TN 25,000; FP 0; FN 6,990)
+  - Regex Baseline — Precision 1.000, Recall 0.497, F1 0.664, Accuracy 0.749 (TP 12,435; TN 25,000; FP 0; FN 12,565)
+  - LLM Simulator — Precision 1.000, Recall 0.496, F1 0.663, Accuracy 0.748 (TP 12,406; TN 25,000; FP 0; FN 12,594)
+  - Ensemble — Precision 1.000, Recall 0.795, F1 0.886, Accuracy 0.898 (TP 19,882; TN 25,000; FP 0; FN 5,118)
+- Artifacts (example names):
+  - `evaluation_metrics_synth_50k_*.csv`, `detailed_results_synth_50k_*.csv`
+  - `evaluation_results_synth_50k_*.png` when plots are enabled
 
 Note: Current ZKP implementation is a simulation suitable for research/development and interface testing; not a production cryptographic proof.
 
