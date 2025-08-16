@@ -19,12 +19,15 @@ This project experiments with multi-layer defenses for LLM prompt injection, com
 
 ## Evaluation
 - Built-in small set: `python run_evaluation.py`
-- External dataset: `python run_evaluation.py -d data/synth_50k.json`
+- External datasets:
+  - 4k JSON: `python run_evaluation.py -d data/synth_4k.json`
+  - 50k JSON: `python run_evaluation.py -d data/synth_50k.json`
+  - 200k CSV: `FAST_EVAL=true SKIP_PLOTS=true python run_evaluation.py -d data/synth_200k.csv`
 - Outputs include metrics CSV, detailed results CSV, and plots (tagged by dataset name).
 
-- 50k run tips:
-  - For speed: `FAST_EVAL=true SKIP_PLOTS=true python run_evaluation.py -d data/synth_50k.json`
-  - To generate figures: ensure matplotlib+seaborn installed, then `SKIP_PLOTS=false ...`
+- Tips:
+  - For large sets (50k/200k) and faster runs: `FAST_EVAL=true SKIP_PLOTS=true ...`
+  - To generate figures: ensure matplotlib+seaborn installed, then set `SKIP_PLOTS=false`
 
 ### 50k benchmark (synth_50k)
 - Summary (from `data/synth_50k.json`):
@@ -192,12 +195,21 @@ docker compose up --build
 
 ## Data + evaluation
 ```bash
+# Generate synthetic data (4k)
+python data/generate_synthetic_dataset.py -b 2000 -a 2000 -f json -o data/synth_4k.json --seed 42
 # Generate synthetic data (50k)
 python data/generate_synthetic_dataset.py -b 25000 -a 25000 -f json -o data/synth_50k.json
+# Generate synthetic data (200k)
+python data/generate_synthetic_dataset.py -b 100000 -a 100000 -f csv -o data/synth_200k.csv
+
 # Evaluate (built-in)
 python run_evaluation.py
-# Evaluate (external dataset)
+# Evaluate (4k)
+python run_evaluation.py -d data/synth_4k.json
+# Evaluate (50k)
 python run_evaluation.py -d data/synth_50k.json
+# Evaluate (200k)
+FAST_EVAL=true SKIP_PLOTS=true python run_evaluation.py -d data/synth_200k.csv
 ```
 
 ## Security hardening summary
