@@ -11,11 +11,33 @@ This project experiments with multi-layer defenses for LLM prompt injection, com
 - Generate large datasets to improve accuracy/precision/recall:
   - JSON: `python data/generate_synthetic_dataset.py -b 25000 -a 25000 -f json -o data/synth_50k.json`
   - CSV: `python data/generate_synthetic_dataset.py -b 100000 -a 100000 -f csv -o data/synth_200k.csv`
+- Included datasets (ready to use):
+  - `data/synth_50k.json` — 50,000 rows (25k benign / 25k adversarial), ~4.8 MB
+  - `data/synth_4k.json` — 4,000 rows (balanced), ~0.4 MB
+  - `data/synth_200k.csv` — 200,000 rows (100k benign / 100k adversarial), ~12 MB (CSV)
+- Schema: `[{"prompt": str, "label": "benign"|"adversarial"}, ...]` (JSON) or CSV columns `prompt,label`
 
 ## Evaluation
 - Built-in small set: `python run_evaluation.py`
-- External dataset: `python run_evaluation.py -d data/synth_50k.json`
+- External datasets:
+  - 4k JSON: `python run_evaluation.py -d data/synth_4k.json`
+  - 50k JSON: `python run_evaluation.py -d data/synth_50k.json`
+  - 200k CSV: `FAST_EVAL=true SKIP_PLOTS=true python run_evaluation.py -d data/synth_200k.csv`
 - Outputs include metrics CSV, detailed results CSV, and plots (tagged by dataset name).
+
+- Tips:
+  - For large sets (50k/200k) and faster runs: `FAST_EVAL=true SKIP_PLOTS=true ...`
+  - To generate figures: ensure matplotlib+seaborn installed, then set `SKIP_PLOTS=false`
+
+### 50k benchmark (synth_50k)
+- Summary (from `data/synth_50k.json`):
+  - ZKP Framework — Precision 1.000, Recall 0.720, F1 0.837, Accuracy 0.860 (TP 18,010; TN 25,000; FP 0; FN 6,990)
+  - Regex Baseline — Precision 1.000, Recall 0.497, F1 0.664, Accuracy 0.749 (TP 12,435; TN 25,000; FP 0; FN 12,565)
+  - LLM Simulator — Precision 1.000, Recall 0.496, F1 0.663, Accuracy 0.748 (TP 12,406; TN 25,000; FP 0; FN 12,594)
+  - Ensemble — Precision 1.000, Recall 0.795, F1 0.886, Accuracy 0.898 (TP 19,882; TN 25,000; FP 0; FN 5,118)
+- Artifacts (example names):
+  - `evaluation_metrics_synth_50k_*.csv`, `detailed_results_synth_50k_*.csv`
+  - `evaluation_results_synth_50k_*.png` when plots are enabled
 
 Note: Current ZKP implementation is a simulation suitable for research/development and interface testing; not a production cryptographic proof.
 
@@ -102,7 +124,7 @@ sequenceDiagram
 ```mermaid
 flowchart LR
     DS1[Built-in small set]
-    DS2["Synthetic generator\ndata/synthetic_dataset.py"]
+    DS2["Synthetic generator\ndata/generate_synthetic_dataset.py"]
     DS3[Custom JSON/CSV]
     
     DS1 & DS2 & DS3 --> RUN["run_evaluation.py\n(--dataset optional)"]
@@ -166,6 +188,31 @@ export FLASK_SECRET_KEY=change_me
 python app.py
 ```
 
+### Use with real Ollama
+- Install Ollama: see the [official install guide](https://ollama.com/download)
+- Start the server (in a separate terminal):
+```bash
+ollama serve
+```
+- Pull a compatible model (example: `gemma:2b`):
+```bash
+ollama pull gemma:2b
+```
+- Configure and run the app (OpenAI-compatible endpoint):
+```bash
+export OLLAMA_BASE_URL=http://localhost:11434/v1
+export OLLAMA_MODEL=gemma:2b
+export FLASK_SECRET_KEY=change_me
+python app.py
+```
+- Optional: verify the endpoint is reachable before starting the app:
+```bash
+curl -s -X POST http://localhost:11434/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"gemma:2b","messages":[{"role":"user","content":"Hello"}]}'
+```
+- Docker Compose tip: run Ollama separately on the host and add `OLLAMA_BASE_URL` to the `llm-security` service environment (e.g., `http://host.docker.internal:11434/v1` on macOS/Windows; on Linux, use the host IP or host networking).
+
 ## Run (Docker Compose)
 ```bash
 docker compose up --build
@@ -173,12 +220,21 @@ docker compose up --build
 
 ## Data + evaluation
 ```bash
+# Generate synthetic data (4k)
+python data/generate_synthetic_dataset.py -b 2000 -a 2000 -f json -o data/synth_4k.json --seed 42
 # Generate synthetic data (50k)
 python data/generate_synthetic_dataset.py -b 25000 -a 25000 -f json -o data/synth_50k.json
+# Generate synthetic data (200k)
+python data/generate_synthetic_dataset.py -b 100000 -a 100000 -f csv -o data/synth_200k.csv
+
 # Evaluate (built-in)
 python run_evaluation.py
-# Evaluate (external dataset)
+# Evaluate (4k)
+python run_evaluation.py -d data/synth_4k.json
+# Evaluate (50k)
 python run_evaluation.py -d data/synth_50k.json
+# Evaluate (200k)
+FAST_EVAL=true SKIP_PLOTS=true python run_evaluation.py -d data/synth_200k.csv
 ```
 
 ## Security hardening summary

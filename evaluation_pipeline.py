@@ -33,7 +33,10 @@ except Exception:
     plt = None
     sns = None
 from datetime import datetime
-import requests
+try:
+    import requests  # type: ignore
+except Exception:
+    requests = None  # type: ignore
 from zkp_security import ZKPSecurity, ZKProof
 import os
 import math

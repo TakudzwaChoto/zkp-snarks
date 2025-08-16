@@ -5,7 +5,10 @@ import time
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 import os
-import requests
+try:
+    import requests  # type: ignore
+except Exception:
+    requests = None  # type: ignore
 import re
 from security.normalizer import normalize_prompt, NORMALIZER_VERSION
 from security.policy_dfa import PolicyDFA, load_policy_terms
@@ -101,7 +104,7 @@ class ZKPSecurity:
         Returns a dict like {"proof": ..., "publicSignals": ..., "valid": bool, "policy_id": str}
         or None if SNARK is disabled.
         """
-        if not self.snark_enabled or not self.snark_prover_url:
+        if not self.snark_enabled or not self.snark_prover_url or requests is None:
             return None
         try:
             payload = {
@@ -122,7 +125,7 @@ class ZKPSecurity:
             return True
         if not snark_obj:
             return False
-        if self.snark_verify_url:
+        if self.snark_verify_url and requests is not None:
             try:
                 resp = requests.post(self.snark_verify_url, json=snark_obj, timeout=10)
                 resp.raise_for_status()
