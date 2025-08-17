@@ -672,7 +672,7 @@ class AdvancedEvaluationPipeline:
             self.print_detailed_analysis(method_name, results)
             print("\n")
         fig = self.create_visualizations(all_results, metrics)
-        # Save results
+        # Save results (legacy artifacts)
         ds_tag = self.dataset_name
         from datetime import datetime
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -680,11 +680,26 @@ class AdvancedEvaluationPipeline:
         details_path = f"detailed_results_{ds_tag}_{timestamp}.csv"
         self.save_detailed_results(all_results, metrics)
         if fig is not None:
-            fig.savefig(f"evaluation_results_{ds_tag}_{timestamp}.png", dpi=160, bbox_inches='tight')
+            try:
+                fig.savefig(f"evaluation_results_{ds_tag}_{timestamp}.png", dpi=160, bbox_inches='tight')
+            except Exception as e:
+                print(f"Figure save failed: {e}")
         else:
             print("Skipping plot saving due to plot generation failure.")
         print(f"Saved metrics: {metrics_path}\nSaved details: {details_path}")
         print("\n✅ Evaluation Pipeline Complete!\n============================================================")
+        # Build structured results for external plotting
+        primary_method = 'Ensemble' if 'Ensemble' in all_results else next(iter(all_results.keys()))
+        primary_results = all_results[primary_method]
+        y_true = ['adversarial' if r.true_label == 'adversarial' else 'benign' for r in primary_results]
+        y_pred = ['adversarial' if r.predicted_label == 'adversarial' else 'benign' for r in primary_results]
+        labels = ['benign', 'adversarial']
+        latency_ms = {m: (metrics[m].get('avg_detection_time', 0.0) * 1000.0) for m in metrics.keys()}
+        return {
+            'metrics': metrics,
+            'confusion_matrix': {'y_true': y_true, 'y_pred': y_pred, 'labels': labels},
+            'latency': latency_ms
+        }
 
     def print_detailed_analysis(self, method_name: str, results: List[DetectionResult]) -> None:
         tp = sum(1 for r in results if r.true_label == 'adversarial' and r.predicted_label == 'adversarial')
