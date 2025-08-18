@@ -9,35 +9,35 @@ This project experiments with multi-layer defenses for LLM prompt injection, com
 
 ## Synthetic dataset
 - Generate large datasets to improve accuracy/precision/recall:
-  - JSON: `python data/generate_synthetic_dataset.py -b 25000 -a 25000 -f json -o data/synth_50k.json`
-  - CSV: `python data/generate_synthetic_dataset.py -b 100000 -a 100000 -f csv -o data/synth_200k.csv`
+  - JSON: `python data/generate_synthetic_dataset.py -b 25000 -a 25000 -f json -o data/50kdata.json`
+  - CSV: `python data/generate_synthetic_dataset.py -b 100000 -a 100000 -f csv -o data/200kdata.csv`
 - Included datasets (ready to use):
-  - `data/synth_50k.json` — 50,000 rows (25k benign / 25k adversarial), ~4.8 MB
-  - `data/synth_4k.json` — 4,000 rows (balanced), ~0.4 MB
-  - `data/synth_200k.csv` — 200,000 rows (100k benign / 100k adversarial), ~12 MB (CSV)
+  - `data/50kdata.json` — 50,000 rows (25k benign / 25k adversarial), ~4.8 MB
+  - `data/4kdata.json` — 4,000 rows (balanced), ~0.4 MB
+  - `data/200kdata.csv` — 200,000 rows (100k benign / 100k adversarial), ~12 MB (CSV)
 - Schema: `[{"prompt": str, "label": "benign"|"adversarial"}, ...]` (JSON) or CSV columns `prompt,label`
 
 ## Evaluation
 - Built-in small set: `python run_evaluation.py`
 - External datasets:
-  - 4k JSON: `python run_evaluation.py -d data/synth_4k.json`
-  - 50k JSON: `python run_evaluation.py -d data/synth_50k.json`
-  - 200k CSV: `FAST_EVAL=true SKIP_PLOTS=true python run_evaluation.py -d data/synth_200k.csv`
+  - 4k CSV: `python run_evaluation.py -d data/4kdata.csv`
+  - 50k CSV: `python run_evaluation.py -d data/50kdata.csv`
+  - 200k CSV: `FAST_EVAL=true SKIP_PLOTS=true python run_evaluation.py -d data/200kdata.csv`
 - Outputs include metrics CSV, detailed results CSV, and plots (tagged by dataset name).
 
 - Tips:
   - For large sets (50k/200k) and faster runs: `FAST_EVAL=true SKIP_PLOTS=true ...`
   - To generate figures: ensure matplotlib+seaborn installed, then set `SKIP_PLOTS=false`
 
-### 50k benchmark (synth_50k)
-- Summary (from `data/synth_50k.json`):
+### 50k benchmark (50kdata)
+- Summary (from `data/50kdata.json`):
   - ZKP Framework — Precision 1.000, Recall 0.720, F1 0.837, Accuracy 0.860 (TP 18,010; TN 25,000; FP 0; FN 6,990)
   - Regex Baseline — Precision 1.000, Recall 0.497, F1 0.664, Accuracy 0.749 (TP 12,435; TN 25,000; FP 0; FN 12,565)
   - LLM Simulator — Precision 1.000, Recall 0.496, F1 0.663, Accuracy 0.748 (TP 12,406; TN 25,000; FP 0; FN 12,594)
   - Ensemble — Precision 1.000, Recall 0.795, F1 0.886, Accuracy 0.898 (TP 19,882; TN 25,000; FP 0; FN 5,118)
 - Artifacts (example names):
-  - `evaluation_metrics_synth_50k_*.csv`, `detailed_results_synth_50k_*.csv`
-  - `evaluation_results_synth_50k_*.png` when plots are enabled
+  - `evaluation_metrics_50kdata_*.csv`, `detailed_results_50kdata_*.csv`
+  - `evaluation_results_50kdata_*.png` when plots are enabled
 
 Note: Current ZKP implementation is a simulation suitable for research/development and interface testing; not a production cryptographic proof.
 
@@ -221,20 +221,20 @@ docker compose up --build
 ## Data + evaluation
 ```bash
 # Generate synthetic data (4k)
-python data/generate_synthetic_dataset.py -b 2000 -a 2000 -f json -o data/synth_4k.json --seed 42
+python data/generate_synthetic_dataset.py -b 2000 -a 2000 -f json -o data/4kdata.json --seed 42
 # Generate synthetic data (50k)
-python data/generate_synthetic_dataset.py -b 25000 -a 25000 -f json -o data/synth_50k.json
+python data/generate_synthetic_dataset.py -b 25000 -a 25000 -f json -o data/50kdata.json
 # Generate synthetic data (200k)
-python data/generate_synthetic_dataset.py -b 100000 -a 100000 -f csv -o data/synth_200k.csv
+python data/generate_synthetic_dataset.py -b 100000 -a 100000 -f csv -o data/200kdata.csv
 
 # Evaluate (built-in)
 python run_evaluation.py
 # Evaluate (4k)
-python run_evaluation.py -d data/synth_4k.json
+python run_evaluation.py -d data/4kdata.csv
 # Evaluate (50k)
-python run_evaluation.py -d data/synth_50k.json
+python run_evaluation.py -d data/50kdata.csv
 # Evaluate (200k)
-FAST_EVAL=true SKIP_PLOTS=true python run_evaluation.py -d data/synth_200k.csv
+FAST_EVAL=true SKIP_PLOTS=true python run_evaluation.py -d data/200kdata.csv
 ```
 
 ## Security hardening summary
@@ -288,9 +288,8 @@ FAST_EVAL=true SKIP_PLOTS=true python run_evaluation.py -d data/synth_200k.csv
 - For interaction i with commitments `cⁱ_p, cⁱ_r` and previous hash `h_{i-1}`:
 - `h_i = H(cⁱ_p || cⁱ_r || h_{i-1})`
 - `σ_i = Sign_sk(h_i)`
-- 
-## Detailed stage-by-stage flow (how it works)
 
+## Detailed stage-by-stage flow (how it works)
 ```mermaid
 flowchart TD
     A[User Input] --> B[Normalize Input]
@@ -329,15 +328,15 @@ flowchart TD
 ## Evaluation recipes (reproducible)
 - Generate 4k dataset (balanced):
 ```bash
-python data/generate_synthetic_dataset.py -b 2000 -a 2000 -f json -o data/synth_4k.json --seed 42
+python data/generate_synthetic_dataset.py -b 2000 -a 2000 -f json -o data/4kdata.json --seed 42
 ```
 - Run fast (no plots):
 ```bash
-FAST_EVAL=true SKIP_PLOTS=true python run_evaluation.py -d data/synth_4k.json
+FAST_EVAL=true SKIP_PLOTS=true python run_evaluation.py -d data/4kdata.csv
 ```
 - Run with figures (install numpy+pandas+sklearn+matplotlib+seaborn; headless: set MPLBACKEND=Agg):
 ```bash
-SKIP_PLOTS=false python run_evaluation.py -d data/synth_4k.json
+SKIP_PLOTS=false python run_evaluation.py -d data/4kdata.csv
 ```
 
 ## Tuning knobs (practical)

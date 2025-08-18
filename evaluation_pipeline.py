@@ -170,18 +170,35 @@ class AdvancedEvaluationPipeline:
                 return [(row['prompt'], row['label']) for row in data]
             df = pd.read_json(path)  # type: ignore
         elif path.endswith('.csv'):
+            # Support two CSV schemas:
+            # 1) prompt,label
+            # 2) benign,adversarial (one or both columns may be filled per row)
             if pd is None:
                 records: List[Tuple[str, str]] = []
                 with open(path, 'r', encoding='utf-8') as f:
-                    header = f.readline().strip().split(',')
-                    idx_p = header.index('prompt')
-                    idx_l = header.index('label')
+                    raw_header = f.readline().rstrip('\n')
+                    header_parts: List[str] = []
+                    cur = ''
+                    q = False
+                    for ch in raw_header:
+                        if ch == '"':
+                            q = not q
+                            continue
+                        if ch == ',' and not q:
+                            header_parts.append(cur)
+                            cur = ''
+                        else:
+                            cur += ch
+                    if cur:
+                        header_parts.append(cur)
+                    header = [h.strip() for h in header_parts]
+                    has_prompt_label = ('prompt' in header and 'label' in header)
+                    has_ba = ('benign' in header and 'adversarial' in header)
+                    if not has_prompt_label and not has_ba:
+                        raise ValueError("CSV must have columns prompt,label or benign,adversarial")
+                    idx_map = {name: header.index(name) for name in header}
                     for line in f:
-                        # naive CSV parsing; prompts may be quoted
-                        if line.startswith('"'):
-                            # read until next ", then comma, then label
-                            pass
-                        parts = []
+                        parts: List[str] = []
                         cur = ''
                         q = False
                         for ch in line:
@@ -195,11 +212,41 @@ class AdvancedEvaluationPipeline:
                                 cur += ch
                         if cur:
                             parts.append(cur.rstrip('\n'))
-                        prompt = parts[idx_p].strip('"')
-                        label = parts[idx_l]
-                        records.append((prompt, label))
+                        if has_prompt_label:
+                            prompt = parts[idx_map['prompt']].strip('"') if idx_map['prompt'] < len(parts) else ''
+                            label = parts[idx_map['label']].strip('"') if idx_map['label'] < len(parts) else ''
+                            if prompt and label:
+                                records.append((prompt, label))
+                        else:
+                            btxt = parts[idx_map['benign']].strip('"') if idx_map['benign'] < len(parts) else ''
+                            atxt = parts[idx_map['adversarial']].strip('"') if idx_map['adversarial'] < len(parts) else ''
+                            if btxt:
+                                records.append((btxt, 'benign'))
+                            if atxt:
+                                records.append((atxt, 'adversarial'))
                 return records
+            # pandas path
             df = pd.read_csv(path)  # type: ignore
+            cols = set(df.columns.str.lower())  # type: ignore
+            if {'prompt', 'label'}.issubset(cols):
+                # normalize column case
+                pcol = [c for c in df.columns if c.lower() == 'prompt'][0]  # type: ignore
+                lcol = [c for c in df.columns if c.lower() == 'label'][0]  # type: ignore
+                return list(zip(df[pcol].astype(str).tolist(), df[lcol].astype(str).tolist()))  # type: ignore
+            elif {'benign', 'adversarial'}.issubset(cols):
+                bcol = [c for c in df.columns if c.lower() == 'benign'][0]  # type: ignore
+                acol = [c for c in df.columns if c.lower() == 'adversarial'][0]  # type: ignore
+                records: List[Tuple[str, str]] = []
+                for _, row in df.iterrows():  # type: ignore
+                    b = row[bcol]
+                    a = row[acol]
+                    if isinstance(b, str) and b.strip():
+                        records.append((b, 'benign'))
+                    if isinstance(a, str) and a.strip():
+                        records.append((a, 'adversarial'))
+                return records
+            else:
+                raise ValueError("Unsupported CSV schema. Expected columns prompt,label or benign,adversarial")
         else:
             raise ValueError("Dataset must be .json or .csv")
         return list(zip(df['prompt'].tolist(), df['label'].tolist()))

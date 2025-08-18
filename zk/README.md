@@ -127,7 +127,7 @@ curl -X POST http://localhost:5001/prove \
 python run_evaluation.py
 
 # Test with custom dataset
-python run_evaluation.py -d data/synth_50k.json
+python run_evaluation.py -d data/50kdata.json
 ```
 
 ## 🔍 Monitoring & Debugging
