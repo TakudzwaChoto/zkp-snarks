@@ -9,8 +9,8 @@ This project experiments with multi-layer defenses for LLM prompt injection, com
 
 ## Synthetic dataset
 - Generate large datasets to improve accuracy/precision/recall:
-  - JSON: `python data/generate_synthetic_dataset.py -b 25000 -a 25000 -f json -o data/50kdata.json`
-  - CSV: `python data/generate_synthetic_dataset.py -b 100000 -a 100000 -f csv -o data/200kdata.csv`
+  - JSON: `python data/generate_synthetic_data.py -b 25000 -a 25000 -f json -o data/50kdata.json`
+  - CSV: `python data/generate_synthetic_data.py -b 100000 -a 100000 -f csv -o data/200kdata.csv`
 - Included datasets (ready to use):
   - `data/50kdata.json` — 50,000 rows (25k benign / 25k adversarial), ~4.8 MB
   - `data/4kdata.json` — 4,000 rows (balanced), ~0.4 MB
@@ -124,7 +124,7 @@ sequenceDiagram
 ```mermaid
 flowchart LR
     DS1[Built-in small set]
-    DS2["Synthetic generator\ndata/generate_synthetic_dataset.py"]
+    DS2["Synthetic generator\ndata/generate_synthetic_data.py"]
     DS3[Custom JSON/CSV]
     
     DS1 & DS2 & DS3 --> RUN["run_evaluation.py\n(--dataset optional)"]
@@ -221,11 +221,11 @@ docker compose up --build
 ## Data + evaluation
 ```bash
 # Generate synthetic data (4k)
-python data/generate_synthetic_dataset.py -b 2000 -a 2000 -f json -o data/4kdata.json --seed 42
+python data/generate_synthetic_data.py -b 2000 -a 2000 -f json -o data/4kdata.json --seed 42
 # Generate synthetic data (50k)
-python data/generate_synthetic_dataset.py -b 25000 -a 25000 -f json -o data/50kdata.json
+python data/generate_synthetic_data.py -b 25000 -a 25000 -f json -o data/50kdata.json
 # Generate synthetic data (200k)
-python data/generate_synthetic_dataset.py -b 100000 -a 100000 -f csv -o data/200kdata.csv
+python data/generate_synthetic_data.py -b 100000 -a 100000 -f csv -o data/200kdata.csv
 
 # Evaluate (built-in)
 python run_evaluation.py
@@ -328,7 +328,7 @@ flowchart TD
 ## Evaluation recipes (reproducible)
 - Generate 4k dataset (balanced):
 ```bash
-python data/generate_synthetic_dataset.py -b 2000 -a 2000 -f json -o data/4kdata.json --seed 42
+python data/generate_synthetic_data.py -b 2000 -a 2000 -f json -o data/4kdata.json --seed 42
 ```
 - Run fast (no plots):
 ```bash

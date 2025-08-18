@@ -6,10 +6,10 @@ Generates large, balanced datasets of benign and adversarial prompts with
 heavy variation to improve coverage and support better accuracy/precision/recall.
 
 Usage examples:
-  python data/generate_synthetic_dataset.py --benign 25000 --adversarial 25000 \
+  python data/generate_synthetic_data.py --benign 25000 --adversarial 25000 \
       --format json --out data/synthetic_50k.json --seed 7
 
-  python data/generate_synthetic_dataset.py -b 100000 -a 100000 \
+  python data/generate_synthetic_data.py -b 100000 -a 100000 \
       --format csv --out data/synthetic_200k.csv
 
 Output schema:
