@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-Synthetic dataset generator for LLM prompt-injection evaluation.
+Dataset generator for LLM prompt-injection evaluation.
 
 Generates large, balanced datasets of benign and adversarial prompts with
 heavy variation to improve coverage and support better accuracy/precision/recall.
 
 Usage examples:
-  python data/generate_synthetic_data.py --benign 25000 --adversarial 25000 \
-      --format json --out data/synthetic_50k.json --seed 7
+  python data/generate_dataset.py --benign 25000 --adversarial 25000 \
+      --format json --out data/50kdata.json --seed 7
 
-  python data/generate_synthetic_data.py -b 100000 -a 100000 \
-      --format csv --out data/synthetic_200k.csv
+  python data/generate_dataset.py -b 100000 -a 100000 \
+      --format csv --out data/200kdata.csv
 
 Output schema:
   - JSON: array of objects [{"prompt": str, "label": "benign"|"adversarial"}, ...]
@@ -224,11 +224,11 @@ def to_csv(records: List[Tuple[str, str]], out_path: str) -> None:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate synthetic benign/adversarial prompt dataset")
+    parser = argparse.ArgumentParser(description="Generate benign/adversarial prompt dataset")
     parser.add_argument("--benign", "-b", type=int, default=5000, help="Number of benign prompts")
     parser.add_argument("--adversarial", "-a", type=int, default=5000, help="Number of adversarial prompts")
     parser.add_argument("--format", "-f", choices=["json", "csv"], default="json", help="Output format")
-    parser.add_argument("--out", "-o", type=str, default="data/synthetic_data.json", help="Output path")
+    parser.add_argument("--out", "-o", type=str, default="data/dataset.json", help="Output path")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     args = parser.parse_args()
 
