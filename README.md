@@ -30,20 +30,20 @@ The result is a traceable, defense-in-depth pipeline with cryptographic accounta
 ### Architecture (high-level)
 ```mermaid
 flowchart TD
-    A[User Prompt] --> N["Normalize (lowercase, whitespace, de‑leetspeak, homoglyph fold)"]
+    A[User Prompt] --> N["Normalize (lowercase, whitespace)"]
     N --> S[Sanitizer/Policy DFA]
-    N --> Z[ZKP safety score + commitment + verify]
-    N --> K[SNARK policy proof (optional)]
+    N --> Z[ZKP safety score]
+    N --> K[SNARK policy proof]
     S --> D{Decision}
     Z --> D
     K --> D
-    D -->|blocked| B[Audit + Flash + Logs]
+    D -->|blocked| B[Audit + Logs]
     D -->|allowed| G[Guardrailed Prompt]
     G --> LLM[Model]
     LLM --> OF[Output Filter]
     OF -->|blocked| B
-    OF -->|allowed| LOG["Privacy‑preserving Log (AES‑GCM + hash‑chain + signature)"]
-    LOG --> UI["UI: Audit Card per-layer status"]
+    OF -->|allowed| LOG["Privacy Log"]
+    LOG --> UI[UI: Audit Status]
 ```
 
 ### Request Lifecycle (sequence)
