@@ -76,32 +76,36 @@ sequenceDiagram
 ## Layers (What the solution consists of)
 Each layer is independent and composable. Blocking occurs on first failing layer (strict mode can enforce stricter logic).
 
-- Normalizer (versioned)
-  - Lowercase, whitespace collapse, leetspeak de‑obfuscation, homoglyph folding
-  - Versioned via `NORMALIZER_VERSION`; ensures proofs and logs bind to the same canonical text
+- We propose 7 mitigation layers (+1 audit layer) working in sequence:
+  1) Normalizer (versioned)
+     - Lowercase, whitespace collapse, leetspeak de‑obfuscation, homoglyph folding
+     - Versioned via `NORMALIZER_VERSION`; binds ZK proofs and logs to a canonical text
+  2) Sanitizer / DFA Policy
+     - Deterministic pattern checks for high‑risk phrases (e.g., “ignore previous instructions”, “admin password”)
+     - Immediately blocks obvious/direct prompt injections
+  3) ZKP Safety Gate (score + commitment + verify)
+     - Proves safety score ≥ threshold against the normalized prompt without revealing the prompt
+     - Verification happens before any LLM call; proof id and score are referenced in audits
+  4) SNARK Policy Proof (optional)
+     - Independent policy‑compliance proof (simulated by default; can be replaced by real circuits)
+     - Adds a cryptographic second opinion; configurable policy id and threshold
+  5) Guardrails (prompt hardening)
+     - Safe‑prefix and policy reminders are prepended to allowed prompts to reduce jailbreak risk during generation
+  6) LLM Self‑Check (advisory; strict mode can block)
+     - Lightweight semantic check to catch indirect/roleplay attacks; used as an advisory signal by default
+  7) Output Filter (post‑generation)
+     - Blocks secrets/sensitive structures in responses (second containment boundary)
+  + Audit Layer (privacy‑preserving logging)
+     - AES‑GCM encryption, hash‑chain, and signatures; logs include proof ids, versions, and timings, not raw prompts
 
-- Sanitizer / DFA policy
-  - Fast pattern checks for known high‑risk phrases (e.g., “ignore previous instructions”, “admin password”)
-  - Deterministic guard against common, direct injections
-
-- ZKP Safety Scoring + Commitment (Core)
-  - Generate a commitment to the normalized prompt and a proof of safety score ≥ threshold
-  - Verify proof server‑side before any model call
-  - Records include proof id and safety metadata for audit without revealing the raw prompt
-
-- SNARK Policy Proof (Optional; simulated by default)
-  - Independent policy compliance proof. When enabled, the app will call a prover service and verify the result
-  - Thresholds and policy id are configurable; real circuits can replace the simulated path
-
-- LLM Self‑Check (advisory or blocking in strict mode)
-  - Lightweight, model‑based “sanity” check to catch semantic or indirect attacks
-
-- Output Filter
-  - Post‑generation guard that blocks sensitive tokens or structures in the model’s response
-
-- Privacy‑Preserving Logging (Audit Trails)
-  - Encrypt interaction data via AES‑GCM; hash‑chain each record for tamper‑evidence; sign with Ed25519
-  - The audit card shows per‑layer status, proof IDs, normalizer version, and timings without revealing secrets
+### Transitions and Inter‑Layer Relationships (how it works together)
+- Normalizer → Sanitizer: all subsequent checks operate on a canonical form; sanitizer quickly rejects obvious threats.
+- Sanitizer → ZKP Gate: if not blocked, a ZKP proves the safety score on the normalized prompt; failure blocks the request.
+- ZKP → SNARK (optional): when enabled, a second cryptographic check proves policy compliance; both must pass to proceed.
+- ZKP/SNARK → Guardrails: approved prompts are hardened with safety instructions to reduce in‑generation jailbreaks.
+- Guardrails → LLM Self‑Check: an advisory semantic pass flags risky content; in strict mode this can block.
+- LLM Self‑Check → Output Filter: final protective boundary removes sensitive outputs before user delivery.
+- All stages → Audit: every decision is recorded with proof ids, normalizer version, timing, and signatures; no raw prompts are logged.
 
 ## Cryptographic Guarantees (concise)
 - ZKP: Integrity of safety scoring and binding to normalized prompt via commitments
