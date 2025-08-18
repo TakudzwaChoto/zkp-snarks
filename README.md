@@ -72,6 +72,123 @@ sequenceDiagram
     W-->>U: Chat bubble + Audit details
   end
 ```
+# Mermaid Diagrams and Descriptions
+
+## 1. High-Level Architecture
+**Shows all layers and how data flows through them.**
+
+```mermaid
+flowchart TD
+    A[User Prompt] --> N["Normalize (lowercase, whitespace, de‑leetspeak, homoglyphs)"]
+    N --> S[Sanitizer / DFA]
+    N --> Z[ZKP Safety Gate<br/>(score ≥ τ, commitment, verify)]
+    N --> K[SNARK Policy Proof (optional)]
+    S --> D{Decision}
+    Z --> D
+    K --> D
+    D -->|blocked| B[Audit + Flash + Logs]
+    D -->|allowed| G[Guardrails (safe prefix)]
+    G --> LLM[Model (Ollama/API)]
+    LLM --> OF[Output Filter]
+    OF -->|blocked| B
+    OF -->|allowed| LOG["Privacy‑preserving Log<br/>(AES‑GCM + chain + sig)"]
+    LOG --> UI["Audit Card (per‑layer status)"]
+```
+
+**Key Features**:
+- **Normalizer**: Canonicalizes input (lowercase, whitespace, etc.).
+- **Sanitizer**: Blocks obvious attacks using DFA.
+- **ZKP Safety Gate**: Enforces safety thresholds cryptographically (`score ≥ τ`).
+- **SNARK Policy Proof**: Optional policy compliance proof.
+- **Privacy-Preserving Logs**: Encrypted (AES-GCM), chained, and signed.
+
+---
+
+## 2. Request Lifecycle
+**End-to-end control flow for a single request.**
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant W as Web App (Flask)
+  participant P as SNARK Prover
+  participant M as Model (Ollama/API)
+
+  U->>W: POST /
+  W->>W: Normalize + Sanitize
+  W->>W: ZKP generate+verify (normalized)
+  alt SNARK_ENABLED
+    W->>P: /prove {prompt_norm, policy_id}
+    P-->>W: {proof, publicSignals, valid}
+    W->>W: verify SNARK
+  end
+  alt Any layer blocked
+    W-->>U: Block + Audit (layer details)
+  else Allowed
+    W->>M: chat.completions(guardrailed prompt)
+    M-->>W: response
+    W->>W: Output filter
+    W->>W: Privacy‑preserving log (AES‑GCM + chain + sig)
+    W-->>U: Response + Audit card
+  end
+```
+
+**Key Notes**:
+- Cryptographic checks (ZKP/SNARK) happen **before** LLM calls.
+- Logs exclude raw prompts (only cryptographic commitments).
+
+---
+
+## 3. Evaluation Workflow
+**How datasets are processed into metrics/figures.**
+
+```mermaid
+flowchart LR
+    DS1[Built‑in 4k/50k/200k]
+    DS2[Generator\n(data/generate_dataset.py)]
+    DS3[Custom JSON/CSV\n(prompt,label)]
+
+    DS1 & DS2 & DS3 --> RUN["run_evaluation.py\n(-d <dataset path>)"]
+    RUN --> CALC["Per‑method metrics\nAccuracy/Precision/Recall/F1/Latency"]
+    RUN --> FIGS["Figures (PNG)\nperformance/confusion/latency"]
+    RUN --> METRICS["metrics_*.csv"]
+    RUN --> DETAILS["detailed_results_*.csv"]
+```
+
+**Outputs**:
+- **Metrics**: Accuracy, Precision, Recall, F1, Latency.
+- **Figures**: Performance plots, confusion matrices.
+- **CSVs**: Raw results for further analysis.
+
+---
+
+## 4. Deployment Workflows
+**Local, Docker, and Production environments.**
+
+```mermaid
+flowchart LR
+  subgraph Local Dev
+    L1[python app.py] --> UI1[http://localhost:5000]
+    L2[python zk/snark_prover.py] --> P1[http://127.0.0.1:5001]
+  end
+  subgraph Docker Compose
+    C1[docker compose up --build]
+    C1 --> APP1[llm-security: gunicorn]
+    C1 --> PROV1[snark-prover]
+  end
+  subgraph Production
+    P2[gunicorn non‑root]
+    P3[Ollama or API]
+    P4[Reverse proxy / SSL]
+    P5[Secret store / env]
+  end
+```
+
+**Environments**:
+- **Local**: Flask + optional SNARK prover.
+- **Docker**: App + prover as services.
+- **Production**: Secure proxy, non-root execution, external LLM.
+
 
 ## Layers (What the solution consists of)
 Each layer is independent and composable. Blocking occurs on first failing layer (strict mode can enforce stricter logic).
