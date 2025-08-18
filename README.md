@@ -18,6 +18,13 @@ This system provides a production-oriented blueprint that implements:
 
 The result is a traceable, defense-in-depth pipeline with cryptographic accountability, measurable detection quality, and clear auditability.
 
+### Novelty and Uniqueness (What makes this work different)
+- Cryptographic accountability for prompt safety: safety scoring is bound to a normalized prompt via commitments and ZK proofs, enabling verifiable, privacy-preserving audits.
+- Multi-layer composition with explicit data flow: normalizer → pattern/DFA → ZKP → optional SNARK → guardrails → output filter → encrypted, chained logs. This reduces single-point failure and clarifies responsibility per layer.
+- Privacy-preserving audit trails: logs include proof IDs, normalizer version, timings, and signatures, but never expose raw prompts; auditors can verify integrity without access to secrets.
+- Evaluation built in: a consistent pipeline that compares multiple detectors with guaranteed plots (headless safe) to reason about accuracy, precision/recall, F1, specificity, and latency.
+- Swap-in cryptography: the SNARK service runs simulated proofs by default but can be pointed at real circuits (snarkjs) without changing the application contract.
+
 ## System Overview
 
 ### Architecture (high-level)
@@ -139,6 +146,39 @@ python app.py
 ```
 Open the UI and test prompts. The audit card shows per‑layer status and timings. Use strict mode to block on any failing layer.
 
+### LLM Integration (Ollama and model options)
+This project speaks to LLMs via an OpenAI-compatible API (default points to Ollama). Configure at runtime using environment variables.
+
+Supported local models with Ollama (examples):
+```bash
+# in a separate terminal
+ollama serve
+ollama pull llama2:7b
+ollama pull tinyllama:1.1b
+ollama pull mistral:7b-instruct
+ollama pull gemma:2b
+
+# run the app with Ollama endpoint
+export OLLAMA_BASE_URL=http://localhost:11434/v1
+export OLLAMA_MODEL=gemma:2b
+python app.py
+```
+
+Communication flow with LLMs:
+- The app validates prompts through the security layers before making a chat.completions call.
+- Allowed prompts are guardrailed (prefix instructions), then sent to the LLM over HTTP.
+- Responses are post-filtered and logged via ZKP-backed privacy-preserving logging.
+
+Inference and training context:
+- This project focuses on inference-time defenses (pre- and post-LLM gates). No model training is required.
+- Optional semantic classifier (TF-IDF + LR) can be trained on project datasets for additional detection signals.
+- Transformer-based classifier (e.g., distilroberta) can be enabled via env (`ENABLE_TRANSFORMER=true`) for semantic coverage; used strictly as an additional detector, not as the generative model.
+
+Security posture for LLM connectivity:
+- Never send raw prompts to third-party telemetry.
+- Normalize and inspect prompts locally; ZKP/SNARK decisions run locally (SNARK prover can be local or remote per env).
+- All logs are encrypted at rest (AES-GCM), chained, and signed to detect tampering.
+
 ### Optional: SNARK service (simulated or snarkjs if configured)
 ```bash
 export SNARK_ENABLED=true
@@ -167,6 +207,12 @@ Outputs under `results/`:
 - `confusion_matrix.png` — confusion matrix for the ZKP layer
 - `latency_comparison.png` — average detection time per method
 - `metrics_<timestamp>.csv` — numeric metrics per method
+
+Reproducibility considerations:
+- We fix the matplotlib backend to Agg to support headless servers.
+- The evaluation runner gracefully degrades when pandas/seaborn are not installed, using pure-matplotlib paths.
+- Datasets included (4k/50k) are versioned in repo; 200k must be generated locally to avoid repository bloat.
+- Seeded data generation allows controlled variance (via `--seed`) for robust experimentation.
 
 ### Methods compared
 - ZKP Framework (this project’s core layer)
