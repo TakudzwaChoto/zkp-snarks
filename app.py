@@ -92,7 +92,8 @@ csrf = CSRFProtect(app)
 
 @app.context_processor
 def inject_csrf_token():
-    return dict(csrf_token=generate_csrf)
+    # Provide CSRF token as a plain string to templates
+    return dict(csrf_token=generate_csrf())
 
 # Set up rate limiting
 limiter = Limiter(
