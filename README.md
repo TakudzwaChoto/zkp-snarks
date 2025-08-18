@@ -258,6 +258,101 @@ Reproducibility considerations:
 ## Citation (project/paper title)
 ZKP‑Augmented LLM Security: Multi‑Layer Adversarial Prompt Protection with Privacy‑Preserving Audit Trails
 
+## Experimental Protocols (Reproducibility)
+
+### A. Environment Setup
+```bash
+pip install -r requirements.txt
+# Optional transformer detector (if you plan to enable it)
+# pip install transformers torch --break-system-packages
+
+# Optional: Ollama for local models
+# In another terminal:
+# ollama serve
+# ollama pull llama2:7b
+# ollama pull tinyllama:1.1b
+# ollama pull mistral:7b-instruct
+# ollama pull gemma:2b
+```
+
+### B. Data Preparation
+```bash
+# Included datasets
+ls -lh data/4kdata.csv data/50kdata.csv
+
+# Generate 4k/50k/200k
+python data/generate_dataset.py -b 2000 -a 2000 -f json -o data/4kdata.json --seed 42
+python data/generate_dataset.py -b 25000 -a 25000 -f json -o data/50kdata.json
+python data/generate_dataset.py -b 100000 -a 100000 -f csv -o data/200kdata.csv
+
+# Kaggle (optional)
+tools/fetch_kaggle_dataset.sh <user/dataset-slug> kaggle_dataset.jsonl data/kaggle_dataset.csv
+# Or:
+python tools/convert_jsonl_to_csv.py -i data/kaggle_dataset.jsonl -o data/kaggle_dataset.csv --lowercase-label
+```
+
+### C. Evaluation Runs (Guaranteed Plots)
+```bash
+# Small (4k)
+FAST_EVAL=true SKIP_PLOTS=false python run_evaluation.py -d data/4kdata.csv -o results_4k
+
+# Medium (50k)
+FAST_EVAL=true SKIP_PLOTS=false python run_evaluation.py -d data/50kdata.csv -o results_50k
+
+# Large (200k; ensure sufficient RAM/CPU)
+FAST_EVAL=true SKIP_PLOTS=false python run_evaluation.py -d data/200kdata.csv -o results_200k
+
+# Kaggle (optional)
+FAST_EVAL=true SKIP_PLOTS=false python run_evaluation.py -d data/kaggle_dataset.csv -o results_kaggle
+```
+Expected outputs per run directory:
+- `performance_metrics.png`, `confusion_matrix.png`, `latency_comparison.png`
+- `metrics_<YYYYMMDD_HHMMSS>.csv`
+
+### D. SNARK‑Enabled Evaluation
+```bash
+# Terminal 1: SNARK (simulated or real if artifacts + snarkjs configured)
+export SNARK_ENABLED=true
+export SNARK_PROVER_URL=http://127.0.0.1:5001/prove
+export SNARK_VERIFY_URL=http://127.0.0.1:5001/verify
+python zk/snark_prover.py
+
+# Terminal 2: App (optional to validate end‑to‑end)
+export OLLAMA_BASE_URL=http://localhost:11434/v1
+export OLLAMA_MODEL=gemma:2b
+python app.py
+
+# Terminal 3: Evaluation (logic remains the same)
+FAST_EVAL=true SKIP_PLOTS=false python run_evaluation.py -d data/4kdata.csv -o results_snark
+```
+
+### E. Ablation and Sensitivity Studies
+```bash
+# 1) ZKP threshold sweep
+for t in 0.5 0.6 0.7 0.8; do \
+  ZKP_THRESHOLD=$t FAST_EVAL=true SKIP_PLOTS=false \
+    python run_evaluation.py -d data/4kdata.csv -o results_thr_${t//./}; \
+done
+
+# 2) Disable transformer (default is disabled); enable to compare
+ENABLE_TRANSFORMER=true FAST_EVAL=true SKIP_PLOTS=false \
+  python run_evaluation.py -d data/4kdata.csv -o results_tf
+
+# 3) Strict mode (UI path): toggles block behavior; for batch eval keep default
+```
+Collect metric CSVs from each `results_*` directory and compare accuracy/precision/recall/F1 and latency.
+
+### F. Integrity and Audit Validation
+```bash
+# Run app and interact; then verify logs
+python app.py
+# In UI, submit safe and adversarial prompts; note audit card proof id and status
+# From another terminal (admin role):
+python -c "import requests; print(requests.get('http://127.0.0.1:5000/verify').text)"
+```
+This validates the tamper‑evident log chain: integrity should report `VALID` unless files were modified.
+
+
 ### Kaggle dataset (optional)
 - If you have a Kaggle JSONL (e.g., `kaggle_dataset.jsonl`), you can fetch and convert it to CSV with:
 ```bash
