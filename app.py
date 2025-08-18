@@ -333,7 +333,7 @@ def index():
             "role": "user",
             "content": prompt,
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "status": "allowed" if not triggered and zkp_valid else "blocked",
+            "status": "allowed" if (not triggered and zkp_valid and snark_valid) else "blocked",
             "zkp_proof": zkp_proof
         }
         # Strict mode: block if sanitization, self-checker, or ZKP validation fails
@@ -443,10 +443,23 @@ def index():
             'prompt': prompt,
             'explanation': session.get('self_check_reason', ''),
             'status': 'allowed',
+            'blocked_layers': {
+                'sanitizer': False,
+                'llm_self_check': None,
+                'zkp_valid': True,
+                'snark_valid': True
+            },
             'zkp_safety_score': zkp_proof.metadata.get("safety_score", 0),
+            'zkp_proof_id': zkp_proof.commitment[:16],
             'zkp_log_id': zkp_log_entry["interaction_id"],
             'normalizer_version': NORMALIZER_VERSION,
-            'snark_policy_id': os.getenv('SNARK_POLICY_ID', 'default')
+            'snark_policy_id': os.getenv('SNARK_POLICY_ID', 'default'),
+            'snark_score': (snark_obj or {}).get('publicSignals', {}).get('score'),
+            'timings_ms': {
+                'sanitize': round(t_sanitize*1000, 2),
+                'zkp': round(t_zkp*1000, 2),
+                'snark': round(t_snark*1000, 2)
+            }
         }
         session['audit_info'] = audit_info
         flash(f"Log ID: {log_id} | ZKP Log ID: {zkp_log_entry['interaction_id'][:8]}...")

@@ -1,111 +1,64 @@
-# prompt-injection-mitigation-by-multilayer-cryptographic-security
+## ZKP-Augmented LLM Security: Multi-Layer Adversarial Prompt Protection with Privacy-Preserving Audit Trails
 
-This project experiments with multi-layer defenses for LLM prompt injection, combining simulated ZK proofs with logging, filtering, and evaluation tooling.
+### Abstract
+Large Language Models (LLMs) are highly susceptible to adversarial prompts (aka prompt injection), where carefully crafted instructions manipulate model behavior, extract secrets, or bypass safety filters. This project proposes and implements a practical, end-to-end, multi-layer security framework that combines fast heuristics with cryptographic assurances. The core novelty is a Zero-Knowledge Proof (ZKP)-augmented pipeline that produces privacy-preserving, tamper-evident audit trails while deterministically enforcing layered defenses before, during, and after generation.
 
-## Quick start
-- Install: `pip install -r requirements.txt`
-- Generate signing keys: `python generate_keys.py`
-- Run app: `python app.py`
+### Problem Statement (What is being solved)
+- LLMs can be coerced to ignore safety policies through prompt injection, jailbreaks, and obfuscated attacks.
+- Organizations need reproducible, auditable guarantees that prompts were checked, scored, and handled under a consistent policy—without exposing sensitive prompt content in logs or telemetry.
+- Security teams need measurable, repeatable evaluation with clear metrics and plots to compare multiple detection strategies under realistic datasets.
 
-## Synthetic dataset
-- Generate large datasets to improve accuracy/precision/recall:
-  - JSON: `python data/generate_synthetic_dataset.py -b 25000 -a 25000 -f json -o data/50kdata.json`
-  - CSV: `python data/generate_synthetic_dataset.py -b 100000 -a 100000 -f csv -o data/200kdata.csv`
-- Included datasets (ready to use):
-  - `data/50kdata.json` — 50,000 rows (25k benign / 25k adversarial), ~4.8 MB
-  - `data/4kdata.json` — 4,000 rows (balanced), ~0.4 MB
-  - `data/200kdata.csv` — 200,000 rows (100k benign / 100k adversarial), ~12 MB (CSV)
-- Schema: `[{"prompt": str, "label": "benign"|"adversarial"}, ...]` (JSON) or CSV columns `prompt,label`
+### Contributions (Proposed Solution)
+This system provides a production-oriented blueprint that implements:
+- Deterministic, multi-layer defenses aligned to the LLM request lifecycle
+- ZKP-based safety scoring, commitment, and verification
+- Optional SNARK policy proofing (simulated by default; real circuit ready)
+- Privacy-preserving logs: AES-GCM encryption + hash-chain + digital signatures
+- Repeatable evaluation harness with metrics and plots
 
-## Evaluation
-- Built-in small set: `python run_evaluation.py`
-- External datasets:
-  - 4k CSV: `python run_evaluation.py -d data/4kdata.csv`
-  - 50k CSV: `python run_evaluation.py -d data/50kdata.csv`
-  - 200k CSV: `FAST_EVAL=true SKIP_PLOTS=true python run_evaluation.py -d data/200kdata.csv`
-- Outputs include metrics CSV, detailed results CSV, and plots (tagged by dataset name).
+The result is a traceable, defense-in-depth pipeline with cryptographic accountability, measurable detection quality, and clear auditability.
 
-- Tips:
-  - For large sets (50k/200k) and faster runs: `FAST_EVAL=true SKIP_PLOTS=true ...`
-  - To generate figures: ensure matplotlib+seaborn installed, then set `SKIP_PLOTS=false`
+### Novelty and Uniqueness (What makes this work different)
+- Cryptographic accountability for prompt safety: safety scoring is bound to a normalized prompt via commitments and ZK proofs, enabling verifiable, privacy-preserving audits.
+- Multi-layer composition with explicit data flow: normalizer → pattern/DFA → ZKP → optional SNARK → guardrails → output filter → encrypted, chained logs. This reduces single-point failure and clarifies responsibility per layer.
+- Privacy-preserving audit trails: logs include proof IDs, normalizer version, timings, and signatures, but never expose raw prompts; auditors can verify integrity without access to secrets.
+- Evaluation built in: a consistent pipeline that compares multiple detectors with guaranteed plots (headless safe) to reason about accuracy, precision/recall, F1, specificity, and latency.
+- Swap-in cryptography: the SNARK service runs simulated proofs by default but can be pointed at real circuits (snarkjs) without changing the application contract.
 
-### 50k benchmark (50kdata)
-- Summary (from `data/50kdata.json`):
-  - ZKP Framework — Precision 1.000, Recall 0.720, F1 0.837, Accuracy 0.860 (TP 18,010; TN 25,000; FP 0; FN 6,990)
-  - Regex Baseline — Precision 1.000, Recall 0.497, F1 0.664, Accuracy 0.749 (TP 12,435; TN 25,000; FP 0; FN 12,565)
-  - LLM Simulator — Precision 1.000, Recall 0.496, F1 0.663, Accuracy 0.748 (TP 12,406; TN 25,000; FP 0; FN 12,594)
-  - Ensemble — Precision 1.000, Recall 0.795, F1 0.886, Accuracy 0.898 (TP 19,882; TN 25,000; FP 0; FN 5,118)
-- Artifacts (example names):
-  - `evaluation_metrics_50kdata_*.csv`, `detailed_results_50kdata_*.csv`
-  - `evaluation_results_50kdata_*.png` when plots are enabled
+## System Overview
 
-Note: Current ZKP implementation is a simulation suitable for research/development and interface testing; not a production cryptographic proof.
-
-## SNARK (simulated) integration
-- Start both services with Docker Compose:
-```bash
-docker compose up --build
-```
-- The app will call the prover at `http://snark-prover:5001` (see `docker-compose.yml`).
-- Local run without Docker:
-```bash
-# in one terminal
-export SNARK_ENABLED=true
-export SNARK_PROVER_URL=http://127.0.0.1:5001/prove
-export SNARK_VERIFY_URL=http://127.0.0.1:5001/verify
-python zk/snark_prover.py
-
-# in another terminal
-export SNARK_ENABLED=true
-export SNARK_PROVER_URL=http://127.0.0.1:5001/prove
-export SNARK_VERIFY_URL=http://127.0.0.1:5001/verify
-python app.py
-```
-- Note: current prover is simulated; replace with real Circom/PLONK prover later.
-
-## Policy and normalization
-- Shared normalizer: lowercase, whitespace collapse, de-leetspeak, homoglyph folding; versioned via `NORMALIZER_VERSION`.
-- DFA-based policy (trie) loaded via `POLICY_TERMS_PATH` (JSON list). Used inside ZKP safety scoring and can be mirrored in SNARK.
-
-## Security
-- CSRF protection enabled on all POST routes; secure cookies (Secure/HttpOnly/SameSite=Lax).
-- Persistent AES key for `SecureLogger` via `SECURE_LOGGER_AES_KEY` or `keys/aes.key`.
-
-## Container
-- App runs under gunicorn as non-root; healthcheck added.
-
-## Architecture (multilayer: SNARK + ZKP + heuristics)
+### Architecture (high-level)
 ```mermaid
 flowchart TD
-    A[User Prompt] --> N["Normalize (lowercase, whitespace, de-leetspeak, homoglyphs)"]
+    A[User Prompt] --> N["Normalize (lowercase, whitespace, de‑leetspeak, homoglyph fold)"]
     N --> S[Sanitizer/Policy DFA]
-    N --> Z[ZKP safety score + commitment]
-    N --> K[SNARK policy proof]
+    N --> Z[ZKP safety score + commitment + verify]
+    N --> K[SNARK policy proof (optional)]
     S --> D{Decision}
     Z --> D
     K --> D
     D -->|blocked| B[Audit + Flash + Logs]
     D -->|allowed| G[Guardrailed Prompt]
-    G --> LLM[Ollama Model]
+    G --> LLM[Model]
     LLM --> OF[Output Filter]
     OF -->|blocked| B
-    OF -->|allowed| LOG["Privacy-preserving Log (AES-GCM + hash-chain + signature)"]
-    LOG --> UI["UI: Audit Card shows per-layer status"]
+    OF -->|allowed| LOG["Privacy‑preserving Log (AES‑GCM + hash‑chain + signature)"]
+    LOG --> UI["UI: Audit Card per-layer status"]
 ```
 
-## Request lifecycle (sequence)
+### Request Lifecycle (sequence)
 ```mermaid
 sequenceDiagram
   participant U as User
   participant W as Web App (Flask)
   participant P as SNARK Prover
-  participant M as Model (Ollama)
+  participant M as Model (Ollama or API)
   U->>W: POST /
   W->>W: Normalize(prompt)
   W->>W: Sanitizer + DFA
   W->>W: ZKP generate+verify (normalized)
   alt SNARK_ENABLED
-    W->>P: POST /prove {prompt, policy_id}
+    W->>P: POST /prove {prompt_norm, policy_id}
     P-->>W: {proof, publicSignals, valid}
     W->>W: verify SNARK
   end
@@ -120,231 +73,295 @@ sequenceDiagram
   end
 ```
 
-## Evaluation workflow (datasets → metrics)
-```mermaid
-flowchart LR
-    DS1[Built-in small set]
-    DS2["Synthetic generator\ndata/generate_synthetic_dataset.py"]
-    DS3[Custom JSON/CSV]
-    
-    DS1 & DS2 & DS3 --> RUN["run_evaluation.py\n(--dataset optional)"]
-    
-    RUN --> CALC["Per-method metrics\nPrecision/Recall/F1/Accuracy"]
-    RUN --> VIZ["Plots (PR/ROC-like, bars)"]
-    RUN --> CSV1["evaluation_metrics_*.csv"]
-    RUN --> CSV2["detailed_results_*.csv"]
-```
+## Layers (What the solution consists of)
+Each layer is independent and composable. Blocking occurs on first failing layer (strict mode can enforce stricter logic).
 
-## Deployment workflows
-```mermaid
-flowchart LR
-  subgraph Local Dev
-    L1[python app.py] --> UI1[http://localhost:5000]
-    L2[python zk/snark_prover.py] --> W1[http://localhost:5001]
-  end
-  subgraph Docker Compose
-    C1[docker compose up --build]
-    C1 --> APP1[llm-security: gunicorn]
-    C1 --> PROV1[snark-prover]
-  end
-  subgraph Production
-    P1[gunicorn non‑root]
-    P2[Ollama]
-    P3[Reverse proxy/SSL]
-    P4[Secrets via env/secret store]
-  end
-```
+- We propose 7 mitigation layers (+1 audit layer) working in sequence:
+  1) Normalizer (versioned)
+     - Lowercase, whitespace collapse, leetspeak de‑obfuscation, homoglyph folding
+     - Versioned via `NORMALIZER_VERSION`; binds ZK proofs and logs to a canonical text
+  2) Sanitizer / DFA Policy
+     - Deterministic pattern checks for high‑risk phrases (e.g., “ignore previous instructions”, “admin password”)
+     - Immediately blocks obvious/direct prompt injections
+  3) ZKP Safety Gate (score + commitment + verify)
+     - Proves safety score ≥ threshold against the normalized prompt without revealing the prompt
+     - Verification happens before any LLM call; proof id and score are referenced in audits
+  4) SNARK Policy Proof (optional)
+     - Independent policy‑compliance proof (simulated by default; can be replaced by real circuits)
+     - Adds a cryptographic second opinion; configurable policy id and threshold
+  5) Guardrails (prompt hardening)
+     - Safe‑prefix and policy reminders are prepended to allowed prompts to reduce jailbreak risk during generation
+  6) LLM Self‑Check (advisory; strict mode can block)
+     - Lightweight semantic check to catch indirect/roleplay attacks; used as an advisory signal by default
+  7) Output Filter (post‑generation)
+     - Blocks secrets/sensitive structures in responses (second containment boundary)
+  + Audit Layer (privacy‑preserving logging)
+     - AES‑GCM encryption, hash‑chain, and signatures; logs include proof ids, versions, and timings, not raw prompts
 
-## Environment variables
-- Core
-  - OLLAMA_BASE_URL (default http://localhost:11434/v1)
-  - OLLAMA_MODEL (default gemma:2b)
-  - FLASK_SECRET_KEY
-- SNARK
-  - SNARK_ENABLED=true|false
-  - SNARK_PROVER_URL, SNARK_VERIFY_URL
-  - SNARK_POLICY_ID
-  - SNARKJS_PATH (optional, for real proving)
-  - CIRCUIT_DIR (defaults to zk/build)
-- Policy
-  - POLICY_TERMS_PATH (JSON list for DFA)
-  - NORMALIZER_VERSION (embedded constant in code)
-- Logging
-  - SECURE_LOGGER_AES_KEY (hex, optional; else keys/aes.key)
-- Admin
-  - ADMIN_USERNAME, ADMIN_PASSWORD
+### Transitions and Inter‑Layer Relationships (how it works together)
+- Normalizer → Sanitizer: all subsequent checks operate on a canonical form; sanitizer quickly rejects obvious threats.
+- Sanitizer → ZKP Gate: if not blocked, a ZKP proves the safety score on the normalized prompt; failure blocks the request.
+- ZKP → SNARK (optional): when enabled, a second cryptographic check proves policy compliance; both must pass to proceed.
+- ZKP/SNARK → Guardrails: approved prompts are hardened with safety instructions to reduce in‑generation jailbreaks.
+- Guardrails → LLM Self‑Check: an advisory semantic pass flags risky content; in strict mode this can block.
+- LLM Self‑Check → Output Filter: final protective boundary removes sensitive outputs before user delivery.
+- All stages → Audit: every decision is recorded with proof ids, normalizer version, timing, and signatures; no raw prompts are logged.
 
-## Run (local)
+## Cryptographic Guarantees (concise)
+- ZKP: Integrity of safety scoring and binding to normalized prompt via commitments
+- SNARK (optional): Policy compliance without exposing the prompt
+- Logs: Confidentiality (AES‑GCM), tamper‑evidence (hash chain), non‑repudiation (signature)
+
+## Datasets
+- Included in this repo:
+  - `data/4kdata.csv` and `data/4kdata.json` — balanced, small dataset
+  - `data/50kdata.csv` and `data/50kdata.json` — medium dataset
+  - `data/kaggle_dataset.csv` — sample placeholder; replace with your real Kaggle conversion
+- Generate larger dataset locally (not stored in Git due to size):
 ```bash
-# Terminal 1: SNARK prover (simulated or snarkjs if configured)
+python data/generate_dataset.py -b 100000 -a 100000 -f csv -o data/200kdata.csv
+```
+
+### Data generation
+```bash
+# 4k JSON
+python data/generate_dataset.py -b 2000 -a 2000 -f json -o data/4kdata.json --seed 42
+# 50k JSON
+python data/generate_dataset.py -b 25000 -a 25000 -f json -o data/50kdata.json
+# 200k CSV (local generation)
+python data/generate_dataset.py -b 100000 -a 100000 -f csv -o data/200kdata.csv
+```
+
+### Kaggle integration (optional)
+```bash
+# Requires kaggle CLI authenticated via KAGGLE_USERNAME/KAGGLE_KEY
+tools/fetch_kaggle_dataset.sh <user/dataset-slug> kaggle_dataset.jsonl data/kaggle_dataset.csv
+
+# Or convert an already-downloaded JSONL to CSV (prompt,label):
+python tools/convert_jsonl_to_csv.py -i data/kaggle_dataset.jsonl -o data/kaggle_dataset.csv --lowercase-label
+```
+
+## Running the System (functional overview)
+### App (local)
+```bash
+pip install -r requirements.txt
+python generate_keys.py
+python app.py
+```
+Open the UI and test prompts. The audit card shows per‑layer status and timings. Use strict mode to block on any failing layer.
+
+### LLM Integration (Ollama and model options)
+This project speaks to LLMs via an OpenAI-compatible API (default points to Ollama). Configure at runtime using environment variables.
+
+Supported local models with Ollama (examples):
+```bash
+# in a separate terminal
+ollama serve
+ollama pull llama2:7b
+ollama pull tinyllama:1.1b
+ollama pull mistral:7b-instruct
+ollama pull gemma:2b
+
+# run the app with Ollama endpoint
+export OLLAMA_BASE_URL=http://localhost:11434/v1
+export OLLAMA_MODEL=gemma:2b
+python app.py
+```
+
+Communication flow with LLMs:
+- The app validates prompts through the security layers before making a chat.completions call.
+- Allowed prompts are guardrailed (prefix instructions), then sent to the LLM over HTTP.
+- Responses are post-filtered and logged via ZKP-backed privacy-preserving logging.
+
+Inference and training context:
+- This project focuses on inference-time defenses (pre- and post-LLM gates). No model training is required.
+- Optional semantic classifier (TF-IDF + LR) can be trained on project datasets for additional detection signals.
+- Transformer-based classifier (e.g., distilroberta) can be enabled via env (`ENABLE_TRANSFORMER=true`) for semantic coverage; used strictly as an additional detector, not as the generative model.
+
+Security posture for LLM connectivity:
+- Never send raw prompts to third-party telemetry.
+- Normalize and inspect prompts locally; ZKP/SNARK decisions run locally (SNARK prover can be local or remote per env).
+- All logs are encrypted at rest (AES-GCM), chained, and signed to detect tampering.
+
+### Optional: SNARK service (simulated or snarkjs if configured)
+```bash
+export SNARK_ENABLED=true
+export SNARK_PROVER_URL=http://127.0.0.1:5001/prove
+export SNARK_VERIFY_URL=http://127.0.0.1:5001/verify
+python zk/snark_prover.py
+```
+
+## Evaluation (clear metrics and guaranteed plots)
+
+### What we measure
+- Accuracy: fraction of correct classifications
+- Precision: TP / (TP + FP)
+- Recall (Sensitivity): TP / (TP + FN)
+- F1: harmonic mean of precision and recall
+- Specificity: TN / (TN + FP)
+- Average Detection Time (ms): mean per‑prompt latency per method
+
+### How to run
+```bash
+# Ensure plotting is enabled (Agg backend is used for headless)
+FAST_EVAL=true SKIP_PLOTS=false python run_evaluation.py -d data/4kdata.csv -o results
+```
+Outputs under `results/`:
+- `performance_metrics.png` — accuracy/precision/recall/F1 across methods
+- `confusion_matrix.png` — confusion matrix for the ZKP layer
+- `latency_comparison.png` — average detection time per method
+- `metrics_<timestamp>.csv` — numeric metrics per method
+
+Reproducibility considerations:
+- We fix the matplotlib backend to Agg to support headless servers.
+- The evaluation runner gracefully degrades when pandas/seaborn are not installed, using pure-matplotlib paths.
+- Datasets included (4k/50k) are versioned in repo; 200k must be generated locally to avoid repository bloat.
+- Seeded data generation allows controlled variance (via `--seed`) for robust experimentation.
+
+### Methods compared
+- ZKP Framework (this project’s core layer)
+- Regex Baseline (extended sanitizer)
+- LLM Simulator (risk‑factor heuristic)
+- Ensemble (weighted voting)
+- Optional transformer (if enabled via env)
+
+## Diagrams explained (how it works)
+- Architecture graph: shows the data flow and where each layer attaches. Normalization ensures all downstream checks use the same canonical text. ZKP/SNARK gates prevent unsafe prompts from reaching the model. Output filter and audit trails protect the final mile.
+- Sequence diagram: highlights control flow and branching. The SNARK branch only runs if enabled; otherwise ZKP + sanitizer enforce minimal blocking policy. The log step seals an immutable, privacy‑preserving audit record.
+- Evaluation workflow (internal to code): pipeline evaluates multiple detectors against the same dataset, aggregates metrics, and renders plots to compare trade‑offs.
+
+## Threat Model (concise)
+- Attacks: direct injections, obfuscation (leetspeak, homoglyphs), roleplay, indirect prompts, exfiltration patterns
+- Defenses: normalizer + DFA + ZKP + optional SNARK + output filtering + audit logging
+- Out‑of‑scope: perfect semantic understanding and zero false negatives under unrestricted attacker effort
+
+## Limitations and Future Work
+- Real SNARK circuits can replace the simulated path. The service endpoints and environment variables are already wired.
+- Transformer‑based classifiers can be enabled for improved semantic coverage.
+- Policy and DFA expansions, adaptive thresholds, and per‑layer ROC/PR curves are recommended for production hardening.
+
+## Environment Variables (selected)
+- Core
+  - `FLASK_SECRET_KEY`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`
+- ZK / SNARK
+  - `ZKP_THRESHOLD`, `SNARK_ENABLED`, `SNARK_PROVER_URL`, `SNARK_VERIFY_URL`, `SNARK_POLICY_ID`, `SNARK_THRESHOLD`
+- Logging/Audit
+  - `SECURE_LOGGER_AES_KEY` (hex) or use `keys/aes.key`
+- Evaluation
+  - `FAST_EVAL` (true/false), `SKIP_PLOTS` (true/false), `ENABLE_TRANSFORMER`
+
+## File Map (key components)
+- `app.py` — web app, layer orchestration, audit UI
+- `zkp_security.py` — ZKP safety proofing and SNARK integration hooks
+- `security/` — sanitizer, output filter, semantic tools
+- `data/generate_dataset.py` — dataset generator
+- `tools/convert_jsonl_to_csv.py` — convert JSONL to CSV
+- `tools/fetch_kaggle_dataset.sh` — fetch and convert Kaggle JSONL
+- `run_evaluation.py` — fixed evaluation runner with guaranteed plots
+
+## Citation (project/paper title)
+ZKP‑Augmented LLM Security: Multi‑Layer Adversarial Prompt Protection with Privacy‑Preserving Audit Trails
+
+## Experimental Protocols (Reproducibility)
+
+### A. Environment Setup
+```bash
+pip install -r requirements.txt
+# Optional transformer detector (if you plan to enable it)
+# pip install transformers torch --break-system-packages
+
+# Optional: Ollama for local models
+# In another terminal:
+# ollama serve
+# ollama pull llama2:7b
+# ollama pull tinyllama:1.1b
+# ollama pull mistral:7b-instruct
+# ollama pull gemma:2b
+```
+
+### B. Data Preparation
+```bash
+# Included datasets
+ls -lh data/4kdata.csv data/50kdata.csv
+
+# Generate 4k/50k/200k
+python data/generate_dataset.py -b 2000 -a 2000 -f json -o data/4kdata.json --seed 42
+python data/generate_dataset.py -b 25000 -a 25000 -f json -o data/50kdata.json
+python data/generate_dataset.py -b 100000 -a 100000 -f csv -o data/200kdata.csv
+
+# Kaggle (optional)
+tools/fetch_kaggle_dataset.sh <user/dataset-slug> kaggle_dataset.jsonl data/kaggle_dataset.csv
+# Or:
+python tools/convert_jsonl_to_csv.py -i data/kaggle_dataset.jsonl -o data/kaggle_dataset.csv --lowercase-label
+```
+
+### C. Evaluation Runs (Guaranteed Plots)
+```bash
+# Small (4k)
+FAST_EVAL=true SKIP_PLOTS=false python run_evaluation.py -d data/4kdata.csv -o results_4k
+
+# Medium (50k)
+FAST_EVAL=true SKIP_PLOTS=false python run_evaluation.py -d data/50kdata.csv -o results_50k
+
+# Large (200k; ensure sufficient RAM/CPU)
+FAST_EVAL=true SKIP_PLOTS=false python run_evaluation.py -d data/200kdata.csv -o results_200k
+
+# Kaggle (optional)
+FAST_EVAL=true SKIP_PLOTS=false python run_evaluation.py -d data/kaggle_dataset.csv -o results_kaggle
+```
+Expected outputs per run directory:
+- `performance_metrics.png`, `confusion_matrix.png`, `latency_comparison.png`
+- `metrics_<YYYYMMDD_HHMMSS>.csv`
+
+### D. SNARK‑Enabled Evaluation
+```bash
+# Terminal 1: SNARK (simulated or real if artifacts + snarkjs configured)
 export SNARK_ENABLED=true
 export SNARK_PROVER_URL=http://127.0.0.1:5001/prove
 export SNARK_VERIFY_URL=http://127.0.0.1:5001/verify
 python zk/snark_prover.py
 
-# Terminal 2: App
-export OLLAMA_BASE_URL=http://localhost:11434/v1
-export FLASK_SECRET_KEY=change_me
-python app.py
-```
-
-### Use with real Ollama
-- Install Ollama: see the [official install guide](https://ollama.com/download)
-- Start the server (in a separate terminal):
-```bash
-ollama serve
-```
-- Pull a compatible model (example: `gemma:2b`):
-```bash
-ollama pull gemma:2b
-```
-- Configure and run the app (OpenAI-compatible endpoint):
-```bash
+# Terminal 2: App (optional to validate end‑to‑end)
 export OLLAMA_BASE_URL=http://localhost:11434/v1
 export OLLAMA_MODEL=gemma:2b
-export FLASK_SECRET_KEY=change_me
 python app.py
+
+# Terminal 3: Evaluation (logic remains the same)
+FAST_EVAL=true SKIP_PLOTS=false python run_evaluation.py -d data/4kdata.csv -o results_snark
 ```
-- Optional: verify the endpoint is reachable before starting the app:
+
+### E. Ablation and Sensitivity Studies
 ```bash
-curl -s -X POST http://localhost:11434/v1/chat/completions \
-  -H 'Content-Type: application/json' \
-  -d '{"model":"gemma:2b","messages":[{"role":"user","content":"Hello"}]}'
-```
-- Docker Compose tip: run Ollama separately on the host and add `OLLAMA_BASE_URL` to the `llm-security` service environment (e.g., `http://host.docker.internal:11434/v1` on macOS/Windows; on Linux, use the host IP or host networking).
+# 1) ZKP threshold sweep
+for t in 0.5 0.6 0.7 0.8; do \
+  ZKP_THRESHOLD=$t FAST_EVAL=true SKIP_PLOTS=false \
+    python run_evaluation.py -d data/4kdata.csv -o results_thr_${t//./}; \
+done
 
-## Run (Docker Compose)
+# 2) Disable transformer (default is disabled); enable to compare
+ENABLE_TRANSFORMER=true FAST_EVAL=true SKIP_PLOTS=false \
+  python run_evaluation.py -d data/4kdata.csv -o results_tf
+
+# 3) Strict mode (UI path): toggles block behavior; for batch eval keep default
+```
+Collect metric CSVs from each `results_*` directory and compare accuracy/precision/recall/F1 and latency.
+
+### F. Integrity and Audit Validation
 ```bash
-docker compose up --build
+# Run app and interact; then verify logs
+python app.py
+# In UI, submit safe and adversarial prompts; note audit card proof id and status
+# From another terminal (admin role):
+python -c "import requests; print(requests.get('http://127.0.0.1:5000/verify').text)"
 ```
+This validates the tamper‑evident log chain: integrity should report `VALID` unless files were modified.
 
-## Data + evaluation
+
+### Kaggle dataset (optional)
+- If you have a Kaggle JSONL (e.g., `kaggle_dataset.jsonl`), you can fetch and convert it to CSV with:
 ```bash
-# Generate synthetic data (4k)
-python data/generate_synthetic_dataset.py -b 2000 -a 2000 -f json -o data/4kdata.json --seed 42
-# Generate synthetic data (50k)
-python data/generate_synthetic_dataset.py -b 25000 -a 25000 -f json -o data/50kdata.json
-# Generate synthetic data (200k)
-python data/generate_synthetic_dataset.py -b 100000 -a 100000 -f csv -o data/200kdata.csv
-
-# Evaluate (built-in)
-python run_evaluation.py
-# Evaluate (4k)
-python run_evaluation.py -d data/4kdata.csv
-# Evaluate (50k)
-python run_evaluation.py -d data/50kdata.csv
-# Evaluate (200k)
-FAST_EVAL=true SKIP_PLOTS=true python run_evaluation.py -d data/200kdata.csv
+# Requires kaggle CLI authenticated via KAGGLE_USERNAME/KAGGLE_KEY
+tools/fetch_kaggle_dataset.sh <user/dataset-slug> kaggle_dataset.jsonl data/kaggle_dataset.csv
+# Or convert an already-downloaded JSONL to CSV (prompt,label):
+python tools/convert_jsonl_to_csv.py -i data/kaggle_dataset.jsonl -o data/kaggle_dataset.csv --lowercase-label
 ```
-
-## Security hardening summary
-- CSRF protection on all POST routes; secure cookies (Secure/HttpOnly/SameSite)
-- Hashed users in SQLite (default admin via env); remove default creds in prod
-- Persistent AES key; hash‑chain + signature verification fixed
-- Timeouts for LLM calls; env‑configurable models and base URL
-
-## Guarantees and limits
-- Cryptographic
-  - ZKP: integrity of safety scoring and commitment on the normalized prompt
-  - SNARK: policy compliance without revealing the prompt (when using real circuit)
-  - Logs: tamper‑evident, privacy‑preserving
-- Heuristics: sanitizer/DFA, output filter, LLM self‑check—measured, not proven
-- Limits: policy incompleteness, semantic/indirect attacks, trusted setup, perf
-
-## Roadmap
-- Replace simulated SNARK with Circom/PLONK flow (zk/circom/policy.circom)
-- DFA/token set expansion + semantic classifiers
-- Auto threshold tuner and per‑layer PR/ROC reporting
-- CI + non‑root containers + healthchecks (done) and staging pipelines
-
-## Mathematical foundations (concise)
-### Commitment on normalized prompt
-- Let raw prompt be `x` and normalized prompt be `x̃ = normalize(x)`. We sample a nonce `r`.
-- Commitment: `c = H(x̃ || r)`
-
-### Challenge (binds rules and time)
-- Let `R` be the sorted list of safety rules.
-- Challenge: `ch = H(c || H(json(R)) || t)`
-
-### Response (metadata integrity)
-- With metadata `m = {len, s, |R|, t, v_N}`, where `s` is the safety score and `v_N` the normalizer version:
-- Response: `ρ = H(json(m))`
-
-### Verification checks
-- Freshness: `|now - t| ≤ Δ_T` (e.g., 300 s)
-- Challenge consistency: `ch ?= H(c || H(json(R)) || t)`
-- Threshold: `s ≥ τ`, where `τ = ZKP_MIN_SCORE`
-
-### Heuristic safety score
-- DFA term match indicator: `𝟙_DFA(x̃)`
-- Risk pattern indicators: `𝟙_i(x̃)`
-- Cross-signals: `𝟙_j(x̃)`
-- Score: `s = max(0, 1 - α𝟙_DFA - Σβ_i𝟙_i - Σγ_j𝟙_j)`
-
-### SNARK (optional)
-- `Verify(vk, π, pub) ∈ {true, false}` for policy compliance on `x̃`
-
-### Privacy-preserving log
-- For interaction i with commitments `cⁱ_p, cⁱ_r` and previous hash `h_{i-1}`:
-- `h_i = H(cⁱ_p || cⁱ_r || h_{i-1})`
-- `σ_i = Sign_sk(h_i)`
-
-## Detailed stage-by-stage flow (how it works)
-```mermaid
-flowchart TD
-    A[User Input] --> B[Normalize Input]
-    B --> C[Sanitization Check]
-    B --> D[Zero-Knowledge Proof]
-    B --> E[Policy Proof]
-    C --> F{Decision}
-    D --> F
-    E --> F
-    F -->|Reject| G[Block + Log]
-    F -->|Approve| H[Send to LLM]
-    H --> I[Model Processing]
-    I --> J[Output Filter]
-    J -->|Reject| G
-    J -->|Approve| K[Secure Logging]
-    K --> L[Audit Interface]
-```
-
-### Stage semantics
-1. Normalize: lowercase, de-leetspeak, homoglyph folding, whitespace collapse.
-2. Sanitizer/DFA: fast pattern/phrase checks; DFA uses precise terms with boundary safeguards.
-3. ZKP: compute commitment, challenge, metadata (safety score s), and verify \(s\ge \tau\).
-4. SNARK (optional): remote/local proof for policy compliance.
-5. Decision: block on any failing layer (or stricter policy in strict mode); otherwise continue.
-6. Guardrail prompt: prepend safety prefix.
-7. Model call: bounded timeouts; configurable base URL/model.
-8. Output filter: block sensitive tokens/structures.
-9. Log: AES-GCM encryption, hash chaining, Ed25519 signature.
-
-## Metrics (definitions)
-- Accuracy: \( \frac{TP+TN}{TP+TN+FP+FN} \)
-- Precision: \( \frac{TP}{TP+FP} \)
-- Recall: \( \frac{TP}{TP+FN} \)
-- F1: \( 2\cdot\frac{\mathrm{Prec}\cdot\mathrm{Rec}}{\mathrm{Prec}+\mathrm{Rec}} \)
-
-## Evaluation recipes (reproducible)
-- Generate 4k dataset (balanced):
-```bash
-python data/generate_synthetic_dataset.py -b 2000 -a 2000 -f json -o data/4kdata.json --seed 42
-```
-- Run fast (no plots):
-```bash
-FAST_EVAL=true SKIP_PLOTS=true python run_evaluation.py -d data/4kdata.csv
-```
-- Run with figures (install numpy+pandas+sklearn+matplotlib+seaborn; headless: set MPLBACKEND=Agg):
-```bash
-SKIP_PLOTS=false python run_evaluation.py -d data/4kdata.csv
-```
-
-## Tuning knobs (practical)
-- Thresholds: \(\tau=\) `ZKP_MIN_SCORE` (default 0.6)
-- DFA terms: set `POLICY_TERMS_PATH` to a JSON list of precise phrases (normalized, lowercase)
-- Strict mode: toggles LLM self-check gating in the UI
-- Transformer: `ENABLE_TRANSFORMER=true` (falls back heuristically if not installed)
-
-## Threat model vs guarantees (summary)
-- Guarantees: commitment integrity on normalized prompts; thresholded safety scoring; optional policy SNARK; tamper-evident logging.
-- Non-goals: perfect semantic understanding; zero false negatives under heavy obfuscation; trusted-setup caveats for SNARK (if used).

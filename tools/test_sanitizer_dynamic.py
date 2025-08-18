@@ -11,7 +11,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, os.pardir))
 sys.path.insert(0, ROOT_DIR)
 
-from data.generate_synthetic_dataset import sample_benign, sample_adversarial
+from data.generate_dataset import sample_benign, sample_adversarial
 from security.sanitizer import sanitize_prompt
 
 
@@ -42,7 +42,7 @@ def evaluate_sanitizer(num_benign: int, num_adv: int) -> Tuple[float, float, flo
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Evaluate sanitizer with synthetic data")
+    parser = argparse.ArgumentParser(description="Evaluate sanitizer with generated data")
     parser.add_argument("--benign", "-b", type=int, default=5000)
     parser.add_argument("--adversarial", "-a", type=int, default=5000)
     args = parser.parse_args()
