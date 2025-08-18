@@ -20,8 +20,8 @@ This project experiments with multi-layer defenses for LLM prompt injection, com
 ## Evaluation
 - Built-in small set: `python run_evaluation.py`
 - External datasets:
-  - 4k JSON: `python run_evaluation.py -d data/4kdata.json`
-  - 50k JSON: `python run_evaluation.py -d data/50kdata.json`
+  - 4k CSV: `python run_evaluation.py -d data/4kdata.csv`
+  - 50k CSV: `python run_evaluation.py -d data/50kdata.csv`
   - 200k CSV: `FAST_EVAL=true SKIP_PLOTS=true python run_evaluation.py -d data/200kdata.csv`
 - Outputs include metrics CSV, detailed results CSV, and plots (tagged by dataset name).
 
@@ -230,9 +230,9 @@ python data/generate_synthetic_dataset.py -b 100000 -a 100000 -f csv -o data/200
 # Evaluate (built-in)
 python run_evaluation.py
 # Evaluate (4k)
-python run_evaluation.py -d data/4kdata.json
+python run_evaluation.py -d data/4kdata.csv
 # Evaluate (50k)
-python run_evaluation.py -d data/50kdata.json
+python run_evaluation.py -d data/50kdata.csv
 # Evaluate (200k)
 FAST_EVAL=true SKIP_PLOTS=true python run_evaluation.py -d data/200kdata.csv
 ```
@@ -332,11 +332,11 @@ python data/generate_synthetic_dataset.py -b 2000 -a 2000 -f json -o data/4kdata
 ```
 - Run fast (no plots):
 ```bash
-FAST_EVAL=true SKIP_PLOTS=true python run_evaluation.py -d data/4kdata.json
+FAST_EVAL=true SKIP_PLOTS=true python run_evaluation.py -d data/4kdata.csv
 ```
 - Run with figures (install numpy+pandas+sklearn+matplotlib+seaborn; headless: set MPLBACKEND=Agg):
 ```bash
-SKIP_PLOTS=false python run_evaluation.py -d data/4kdata.json
+SKIP_PLOTS=false python run_evaluation.py -d data/4kdata.csv
 ```
 
 ## Tuning knobs (practical)
