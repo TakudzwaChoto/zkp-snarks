@@ -183,6 +183,43 @@ Security posture for LLM connectivity:
 - Normalize and inspect prompts locally; ZKP/SNARK decisions run locally (SNARK prover can be local or remote per env).
 - All logs are encrypted at rest (AES-GCM), chained, and signed to detect tampering.
 
+## Deployment workflows
+```mermaid
+flowchart LR
+  subgraph Local Dev
+    L1[python app.py] --> UI1[http://localhost:5000]
+    L2[python zk/snark_prover.py] --> P1[http://127.0.0.1:5001]
+  end
+  subgraph Docker Compose
+    C1[docker compose up --build]
+    C1 --> APP1[llm-security: gunicorn]
+    C1 --> PROV1[snark-prover]
+  end
+  subgraph Production
+    P2[gunicorn non‑root]
+    P3[Ollama or API]
+    P4[Reverse proxy / SSL]
+    P5[Secret store / env]
+  end
+```
+
+Quick starts:
+```bash
+# Local with Ollama
+export OLLAMA_BASE_URL=http://localhost:11434/v1
+export OLLAMA_MODEL=gemma:2b
+python app.py
+
+# With SNARK (simulated)
+export SNARK_ENABLED=true
+export SNARK_PROVER_URL=http://127.0.0.1:5001/prove
+export SNARK_VERIFY_URL=http://127.0.0.1:5001/verify
+python zk/snark_prover.py
+
+# Docker Compose
+docker compose up --build
+```
+
 ### Optional: SNARK service (simulated or snarkjs if configured)
 ```bash
 export SNARK_ENABLED=true
@@ -217,6 +254,20 @@ Reproducibility considerations:
 - The evaluation runner gracefully degrades when pandas/seaborn are not installed, using pure-matplotlib paths.
 - Datasets included (4k/50k) are versioned in repo; 200k must be generated locally to avoid repository bloat.
 - Seeded data generation allows controlled variance (via `--seed`) for robust experimentation.
+
+### Evaluation workflow (datasets → metrics)
+```mermaid
+flowchart LR
+    DS1[Built‑in 4k/50k/200k]
+    DS2[Generator\n(data/generate_dataset.py)]
+    DS3[Custom JSON/CSV\n(prompt,label)]
+
+    DS1 & DS2 & DS3 --> RUN["run_evaluation.py\n(-d <dataset path>)"]
+    RUN --> CALC["Per‑method metrics\nAccuracy/Precision/Recall/F1/Latency"]
+    RUN --> FIGS["Figures (PNG)\nperformance/confusion/latency"]
+    RUN --> METRICS["metrics_*.csv"]
+    RUN --> DETAILS["detailed_results_*.csv"]
+```
 
 ### Methods compared
 - ZKP Framework (this project’s core layer)
