@@ -79,28 +79,25 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    A[User Prompt] --> N["Normalize (lowercase, whitespace, de‑leetspeak, homoglyphs)"]
+    A[User Prompt] --> N["Normalize\n(lowercase, whitespace,\nde‑leetspeak, homoglyphs)"]
     N --> S[Sanitizer / DFA]
-    N --> Z[ZKP Safety Gate<br/>(score ≥ τ, commitment, verify)]
-    N --> K[SNARK Policy Proof (optional)]
+    N --> Z["ZKP Safety Gate\n(score ≥ τ, commitment, verify)"]
+    N --> K["SNARK Policy Proof\n(optional)"]
     S --> D{Decision}
     Z --> D
     K --> D
     D -->|blocked| B[Audit + Flash + Logs]
-    D -->|allowed| G[Guardrails (safe prefix)]
-    G --> LLM[Model (Ollama/API)]
+    D -->|allowed| G[Guardrails\n(safe prefix)]
+    G --> LLM[Model\n(Ollama/API)]
     LLM --> OF[Output Filter]
     OF -->|blocked| B
-    OF -->|allowed| LOG["Privacy‑preserving Log<br/>(AES‑GCM + chain + sig)"]
-    LOG --> UI["Audit Card (per‑layer status)"]
+    OF -->|allowed| LOG["Privacy‑preserving Log\n(AES‑GCM + chain + sig)"]
+    LOG --> UI["Audit Card\n(per‑layer status)"]
 ```
 
 **Key Features**:
-- **Normalizer**: Canonicalizes input (lowercase, whitespace, etc.).
-- **Sanitizer**: Blocks obvious attacks using DFA.
-- **ZKP Safety Gate**: Enforces safety thresholds cryptographically (`score ≥ τ`).
-- **SNARK Policy Proof**: Optional policy compliance proof.
-- **Privacy-Preserving Logs**: Encrypted (AES-GCM), chained, and signed.
+- Normalization → Sanitization → Cryptographic gates → Guardrails → Output filtering
+- Logs are encrypted (AES-GCM) and cryptographically signed
 
 ---
 
@@ -110,77 +107,64 @@ flowchart TD
 ```mermaid
 sequenceDiagram
   participant U as User
-  participant W as Web App (Flask)
+  participant W as Web App
   participant P as SNARK Prover
-  participant M as Model (Ollama/API)
+  participant M as LLM
 
   U->>W: POST /
   W->>W: Normalize + Sanitize
-  W->>W: ZKP generate+verify (normalized)
-  alt SNARK_ENABLED
-    W->>P: /prove {prompt_norm, policy_id}
-    P-->>W: {proof, publicSignals, valid}
-    W->>W: verify SNARK
+  W->>W: ZKP generate+verify
+  alt SNARK enabled
+    W->>P: /prove {prompt, policy_id}
+    P-->>W: {proof, publicSignals}
   end
-  alt Any layer blocked
-    W-->>U: Block + Audit (layer details)
+  alt Blocked
+    W-->>U: Block + Audit
   else Allowed
-    W->>M: chat.completions(guardrailed prompt)
+    W->>M: chat.completions
     M-->>W: response
     W->>W: Output filter
-    W->>W: Privacy‑preserving log (AES‑GCM + chain + sig)
-    W-->>U: Response + Audit card
+    W->>W: Encrypted logging
+    W-->>U: Response + Audit
   end
 ```
-
-**Key Notes**:
-- Cryptographic checks (ZKP/SNARK) happen **before** LLM calls.
-- Logs exclude raw prompts (only cryptographic commitments).
 
 ---
 
 ## 3. Evaluation Workflow
-**How datasets are processed into metrics/figures.**
+**Dataset processing pipeline.**
 
 ```mermaid
 flowchart LR
-    DS1[Built‑in 4k/50k/200k]
-    DS2[Generator\n(data/generate_dataset.py)]
-    DS3[Custom JSON/CSV\n(prompt,label)]
-
-    DS1 & DS2 & DS3 --> RUN["run_evaluation.py\n(-d <dataset path>)"]
-    RUN --> CALC["Per‑method metrics\nAccuracy/Precision/Recall/F1/Latency"]
-    RUN --> FIGS["Figures (PNG)\nperformance/confusion/latency"]
-    RUN --> METRICS["metrics_*.csv"]
-    RUN --> DETAILS["detailed_results_*.csv"]
+    DS1[Built-in Datasets]
+    DS2[Generated Data]
+    DS3[Custom CSV/JSON]
+    
+    DS1 & DS2 & DS3 --> RUN[run_evaluation.py]
+    RUN --> METRICS["Accuracy/Precision/Recall"]
+    RUN --> FIGS[Performance Plots]
+    RUN --> CSV[Result CSVs]
 ```
-
-**Outputs**:
-- **Metrics**: Accuracy, Precision, Recall, F1, Latency.
-- **Figures**: Performance plots, confusion matrices.
-- **CSVs**: Raw results for further analysis.
 
 ---
 
 ## 4. Deployment Workflows
-**Local, Docker, and Production environments.**
 
 ```mermaid
 flowchart LR
-  subgraph Local Dev
-    L1[python app.py] --> UI1[http://localhost:5000]
-    L2[python zk/snark_prover.py] --> P1[http://127.0.0.1:5001]
+  subgraph Local
+    L1[Flask App] -->|:5000| UI
+    L2[SNARK Prover] -->|:5001| L1
   end
-  subgraph Docker Compose
-    C1[docker compose up --build]
-    C1 --> APP1[llm-security: gunicorn]
-    C1 --> PROV1[snark-prover]
+  
+  subgraph Docker
+    C1[compose up] --> APP[Gunicorn]
+    C1 --> PROVER[SNARK Service]
   end
+  
   subgraph Production
-    P2[gunicorn non‑root]
-    P3[Ollama or API]
-    P4[Reverse proxy / SSL]
-    P5[Secret store / env]
+    P1[Gunicorn] --> P2[Reverse Proxy]
+    P3[Ollama] --> P1
   end
 ```
 
