@@ -14,7 +14,8 @@ This project experiments with multi-layer defenses for LLM prompt injection, com
 - Included datasets (ready to use):
   - `data/50kdata.json` — 50,000 rows (25k benign / 25k adversarial), ~4.8 MB
   - `data/4kdata.json` — 4,000 rows (balanced), ~0.4 MB
-  - `data/200kdata.csv` — 200,000 rows (100k benign / 100k adversarial), ~12 MB (CSV)
+  - Note: 200k CSV is not stored in the repo to keep size manageable. Generate locally with:
+    `python data/generate_dataset.py -b 100000 -a 100000 -f csv -o data/200kdata.csv`
 - Schema: `[{"prompt": str, "label": "benign"|"adversarial"}, ...]` (JSON) or CSV columns `prompt,label`
 
 ## Evaluation
