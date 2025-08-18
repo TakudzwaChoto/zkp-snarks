@@ -228,7 +228,7 @@ def main():
     parser.add_argument("--benign", "-b", type=int, default=5000, help="Number of benign prompts")
     parser.add_argument("--adversarial", "-a", type=int, default=5000, help="Number of adversarial prompts")
     parser.add_argument("--format", "-f", choices=["json", "csv"], default="json", help="Output format")
-    parser.add_argument("--out", "-o", type=str, default="data/synthetic_dataset.json", help="Output path")
+    parser.add_argument("--out", "-o", type=str, default="data/synthetic_data.json", help="Output path")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     args = parser.parse_args()
 
