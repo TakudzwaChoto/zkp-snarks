@@ -6,7 +6,7 @@ This utility is robust to different key names and allows explicit configuration.
 
 Examples:
   python tools/convert_jsonl_to_csv.py \
-    --input data/Prompt_INJECTION_And_Benign_DATASET.jsonl \
+    --input data/kaggle_dataset.jsonl \
     --output data/kaggle_dataset.csv
 
   # If keys differ, specify them explicitly

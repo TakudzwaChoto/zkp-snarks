@@ -10,7 +10,7 @@ set -euo pipefail
 # Usage:
 #   tools/fetch_kaggle_dataset.sh <dataset-slug> <jsonl-filename> [output-csv]
 # Example:
-#   tools/fetch_kaggle_dataset.sh user/dataset Prompt_INJECTION_And_Benign_DATASET.jsonl data/kaggle_dataset.csv
+#   tools/fetch_kaggle_dataset.sh user/dataset kaggle_dataset.jsonl data/kaggle_dataset.csv
 
 if [ $# -lt 2 ]; then
   echo "Usage: $0 <dataset-slug> <jsonl-filename> [output-csv]" >&2
