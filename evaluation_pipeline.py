@@ -551,12 +551,27 @@ class AdvancedEvaluationPipeline:
         
         skip_plots = os.getenv('SKIP_PLOTS', 'true').lower() == 'true'
         if not skip_plots and plt is not None and sns is not None:
-            # Set up the plotting style
-            plt.style.use('seaborn-v0_8')
-            fig, axes = plt.subplots(2, 2, figsize=(15, 12))
-            fig.suptitle('ZKP-Based LLM Security: Comprehensive Evaluation Results', fontsize=16, fontweight='bold')
+            # Set up the plotting style with beautiful colors
+            plt.style.use('default')
+            if sns is not None:
+                sns.set_palette("husl")
+                sns.set_style("whitegrid", {
+                    'axes.facecolor': '#f8f9fa',
+                    'axes.edgecolor': '#dee2e6',
+                    'grid.color': '#e9ecef',
+                    'grid.linestyle': '--',
+                    'grid.alpha': 0.7
+                })
             
-            # 1. Metrics comparison
+            fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+            fig.suptitle('ZKP-Based LLM Security: Comprehensive Evaluation Results', 
+                        fontsize=18, fontweight='bold', color='#2c3e50', y=0.95)
+            
+            # Beautiful color palettes
+            bar_colors = ['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe', '#00f2fe']
+            hist_colors = ['#4ECDC4', '#FF6B6B', '#45B7D1', '#96CEB4']
+            
+            # 1. Enhanced Metrics comparison with beautiful colors
             methods = list(metrics.keys())
             precision = [metrics[m]['precision'] for m in methods]
             recall = [metrics[m]['recall'] for m in methods]
@@ -566,57 +581,69 @@ class AdvancedEvaluationPipeline:
             x = np.arange(len(methods))
             width = 0.2
             
-            axes[0, 0].bar(x - width*1.5, precision, width, label='Precision', alpha=0.8)
-            axes[0, 0].bar(x - width*0.5, recall, width, label='Recall', alpha=0.8)
-            axes[0, 0].bar(x + width*0.5, f1, width, label='F1', alpha=0.8)
-            axes[0, 0].bar(x + width*1.5, accuracy, width, label='Accuracy', alpha=0.8)
+            # Use beautiful colors for each metric
+            axes[0, 0].bar(x - width*1.5, precision, width, label='Precision', 
+                           color=bar_colors[0], alpha=0.8, edgecolor='white', linewidth=1)
+            axes[0, 0].bar(x - width*0.5, recall, width, label='Recall', 
+                           color=bar_colors[1], alpha=0.8, edgecolor='white', linewidth=1)
+            axes[0, 0].bar(x + width*0.5, f1, width, label='F1', 
+                           color=bar_colors[2], alpha=0.8, edgecolor='white', linewidth=1)
+            axes[0, 0].bar(x + width*1.5, accuracy, width, label='Accuracy', 
+                           color=bar_colors[3], alpha=0.8, edgecolor='white', linewidth=1)
             
-            axes[0, 0].set_xlabel('Detection Methods')
-            axes[0, 0].set_ylabel('Score')
-            axes[0, 0].set_title('Performance Metrics Comparison')
+            axes[0, 0].set_xlabel('Detection Methods', fontweight='bold')
+            axes[0, 0].set_ylabel('Score', fontweight='bold')
+            axes[0, 0].set_title('Performance Metrics Comparison', fontweight='bold', color='#2c3e50')
             axes[0, 0].set_xticks(x)
-            axes[0, 0].set_xticklabels(methods, rotation=45)
-            axes[0, 0].legend()
-            axes[0, 0].grid(True, alpha=0.3)
+            axes[0, 0].set_xticklabels(methods, rotation=45, ha='right')
+            axes[0, 0].legend(framealpha=0.9, fancybox=True, shadow=True)
+            axes[0, 0].grid(True, alpha=0.3, linestyle='--')
+            axes[0, 0].set_ylim(0, 1.1)
             
-            # 2. Detection time comparison
+            # 2. Enhanced Detection time comparison with gradient colors
             detection_times = [metrics[m]['avg_detection_time']*1000 for m in methods]
-            colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4']
+            time_colors = ['#a8edea', '#fed6e3', '#ffecd2', '#fcb69f', '#ff9a9e', '#fecfef']
             
-            bars = axes[0, 1].bar(methods, detection_times, color=colors, alpha=0.8)
-            axes[0, 1].set_xlabel('Detection Methods')
-            axes[0, 1].set_ylabel('Average Detection Time (ms)')
-            axes[0, 1].set_title('Performance Comparison')
-            axes[0, 1].tick_params(axis='x', rotation=45)
+            bars = axes[0, 1].bar(methods, detection_times, 
+                                 color=time_colors[:len(methods)], alpha=0.8, 
+                                 edgecolor='white', linewidth=2)
+            axes[0, 1].set_xlabel('Detection Methods', fontweight='bold')
+            axes[0, 1].set_ylabel('Average Detection Time (ms)', fontweight='bold')
+            axes[0, 1].set_title('Performance Comparison', fontweight='bold', color='#2c3e50')
+            axes[0, 1].tick_params(axis='x', rotation=45, ha='right')
             
-            # Add value labels on bars
+            # Add value labels on bars with enhanced styling
             for bar, time in zip(bars, detection_times):
-                axes[0, 1].text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.5,
-                               f'{time:.1f}ms', ha='center', va='bottom')
+                axes[0, 1].text(bar.get_x() + bar.get_width()/2, bar.get_height() + max(detection_times) * 0.01,
+                               f'{time:.1f}ms', ha='center', va='bottom', fontweight='bold')
             
-            # 3. Confusion matrix for ZKP Framework
+            # 3. Enhanced Confusion matrix with beautiful colormap
             zkp_results = all_results["ZKP Framework"]
             y_true = [1 if r.true_label == "adversarial" else 0 for r in zkp_results]
             y_pred = [1 if r.predicted_label == "adversarial" else 0 for r in zkp_results]
             
             cm = confusion_matrix(y_true, y_pred)
-            sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=axes[1, 0])
-            axes[1, 0].set_title('ZKP Framework: Confusion Matrix')
-            axes[1, 0].set_xlabel('Predicted')
-            axes[1, 0].set_ylabel('Actual')
+            # Use a beautiful diverging colormap
+            sns.heatmap(cm, annot=True, fmt='d', cmap='RdYlBu_r', ax=axes[1, 0],
+                       cbar_kws={'label': 'Count'}, linewidths=0.5, linecolor='white')
+            axes[1, 0].set_title('ZKP Framework: Confusion Matrix', fontweight='bold', color='#2c3e50')
+            axes[1, 0].set_xlabel('Predicted', fontweight='bold')
+            axes[1, 0].set_ylabel('Actual', fontweight='bold')
             
-            # 4. Confidence distribution
+            # 4. Enhanced Confidence distribution with beautiful colors
             zkp_confidences = [r.confidence for r in zkp_results]
             safe_confidences = [r.confidence for r in zkp_results if r.true_label == "safe"]
             adv_confidences = [r.confidence for r in zkp_results if r.true_label == "adversarial"]
             
-            axes[1, 1].hist(safe_confidences, alpha=0.7, label='Safe Prompts', bins=10, color='green')
-            axes[1, 1].hist(adv_confidences, alpha=0.7, label='Adversarial Prompts', bins=10, color='red')
-            axes[1, 1].set_xlabel('Safety Score')
-            axes[1, 1].set_ylabel('Frequency')
-            axes[1, 1].set_title('ZKP Safety Score Distribution')
-            axes[1, 1].legend()
-            axes[1, 1].grid(True, alpha=0.3)
+            axes[1, 1].hist(safe_confidences, alpha=0.8, label='Safe Prompts', bins=15, 
+                           color=hist_colors[0], edgecolor='white', linewidth=1)
+            axes[1, 1].hist(adv_confidences, alpha=0.8, label='Adversarial Prompts', bins=15, 
+                           color=hist_colors[1], edgecolor='white', linewidth=1)
+            axes[1, 1].set_xlabel('Safety Score', fontweight='bold')
+            axes[1, 1].set_ylabel('Frequency', fontweight='bold')
+            axes[1, 1].set_title('ZKP Safety Score Distribution', fontweight='bold', color='#2c3e50')
+            axes[1, 1].legend(framealpha=0.9, fancybox=True, shadow=True)
+            axes[1, 1].grid(True, alpha=0.3, linestyle='--')
             
             # TODO: add true PR/ROC per method when positive probabilities available
             return fig
