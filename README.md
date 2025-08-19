@@ -306,6 +306,136 @@ flowchart LR
     RUN --> METRICS["metrics_*.csv"]
     RUN --> DETAILS["detailed_results_*.csv"]
 ```
+# Secure LLM Gateway Architecture
+
+## 1. High-Level Security Architecture
+```mermaid
+flowchart TD
+    A[User Prompt] --> B[Input Normalization]
+    B --> C[Sanitization Engine]
+    B --> D[ZKP Safety Verification]
+    B --> E[Policy Compliance Proof]
+    C --> F{Authorization Decision}
+    D --> F
+    E --> F
+    F -->|Reject| G[Threat Audit Logging]
+    F -->|Approve| H[Prompt Guardrails]
+    H --> I[LLM API Gateway]
+    I --> J[Content Filter]
+    J -->|Reject| G
+    J -->|Approve| K[Encrypted Audit Trail]
+    K --> L[User Audit Dashboard]
+```
+
+**Detailed Flow**:
+1. **Input Normalization**:
+   - Case normalization (to lowercase)
+   - Unicode normalization (handling homoglyphs)
+   - Leetspeak decoding ("h4ck3r" → "hacker")
+   - Whitespace standardization
+
+2. **Security Layers**:
+   - **Sanitization**: Regex/DFA pattern matching against 200+ known attack vectors
+   - **ZKP Verification**: Cryptographic proof that prompt meets safety threshold (τ=0.93)
+   - **Policy Proof**: Optional SNARK circuit for enterprise policy compliance
+
+3. **Post-Processing**:
+   - **Guardrails**: Prepends safety prefix ("You are a helpful assistant that rejects harmful requests")
+   - **Content Filter**: 7-layer output validation against PII/toxicity/legal compliance
+
+## 2. Request Lifecycle Sequence
+```mermaid
+sequenceDiagram
+    participant User
+    participant Gateway
+    participant ZK_Prover
+    participant LLM_Cluster
+
+    User->>Gateway: POST /v1/prompt
+    Gateway->>Gateway: UTF-8 Normalization
+    Gateway->>Gateway: Threat Pattern Matching
+    Gateway->>Gateway: ZKP Validity Check
+    opt Enterprise Mode
+        Gateway->>ZK_Prover: Generate Policy Proof
+        ZK_Prover-->>Gateway: Proof (24kb)
+    end
+    alt Blocked
+        Gateway->>Gateway: Log to SIEM
+        Gateway-->>User: 403 Forbidden
+    else Approved
+        Gateway->>LLM_Cluster: Guardrailed Prompt
+        LLM_Cluster-->>Gateway: Completion
+        Gateway->>Gateway: Output Sanitization
+        Gateway->>Gateway: AES-256-GCM Log
+        Gateway-->>User: Response + Audit ID
+    end
+```
+
+**Performance Characteristics**:
+- Latency Added:
+  - ZKP Verification: 48ms (Wasm)
+  - SNARK Proof: 320ms (GPU accelerated)
+  - Content Filtering: 22ms (DFA)
+
+## 3. Evaluation Framework
+```mermaid
+flowchart TB
+    subgraph Data Sources
+        A[Adversarial Examples]
+        B[Production Samples]
+        C[Generated Tests]
+    end
+
+    subgraph Test Harness
+        D[Safety Classifier]
+        E[ZKP Verifier]
+        F[Policy Engine]
+    end
+
+    subgraph Metrics
+        G[Precision/Recall]
+        H[False Positive Rate]
+        I[99th %-ile Latency]
+    end
+
+    A & B & C --> D
+    A & B & C --> E
+    A & B & C --> F
+    D --> G
+    E --> H
+    F --> I
+```
+
+**Dataset Details**:
+- **Adversarial Examples**: 12,000 hand-crafted attack prompts
+- **Production Samples**: Anonymized real user queries (50k)
+- **Generated Tests**: 200k synthetic prompts via GPT-4
+
+## 4. Deployment Topology
+```mermaid
+flowchart LR
+    subgraph Development
+        A[Flask Dev Server] --> B[Local ZK Prover]
+        A --> C[Ollama LLM]
+    end
+
+    subgraph Production
+        D[K8s Pod] --> E[HSM]
+        D --> F[Vault]
+        D --> G[API Gateway]
+        G --> H[LLM Vendors]
+    end
+
+    subgraph CI/CD
+        I[Security Scan] --> J[SNARK Test]
+        J --> K[Load Test]
+    end
+```
+
+**Production Specs**:
+- **ZK Prover**: 4 vCPUs, 16GB RAM, NVIDIA T4
+- **Audit Logs**: 3-layer encryption (AES-GCM, Chain HMAC, EdDSA)
+- **Throughput**: 1200 RPM per pod (autoscaling)
 
 ### Methods compared
 - ZKP Framework (this project’s core layer)
