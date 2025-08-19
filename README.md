@@ -30,20 +30,20 @@ The result is a traceable, defense-in-depth pipeline with cryptographic accounta
 ### Architecture (high-level)
 ```mermaid
 flowchart TD
-    A[User Prompt] --> N["Normalize (lowercase, whitespace)"]
+    A[User Prompt] --> N["Normalize (lowercase, whitespace, de‑leetspeak, homoglyph fold)"]
     N --> S[Sanitizer/Policy DFA]
-    N --> Z[ZKP safety score]
-    N --> K[SNARK policy proof]
+    N --> Z[ZKP safety score + commitment + verify]
+    N --> K[SNARK policy proof (optional)]
     S --> D{Decision}
     Z --> D
     K --> D
-    D -->|blocked| B[Audit + Logs]
+    D -->|blocked| B[Audit + Flash + Logs]
     D -->|allowed| G[Guardrailed Prompt]
     G --> LLM[Model]
     LLM --> OF[Output Filter]
     OF -->|blocked| B
-    OF -->|allowed| LOG["Privacy Log"]
-    LOG --> UI[UI: Audit Status]
+    OF -->|allowed| LOG["Privacy‑preserving Log (AES‑GCM + hash‑chain + signature)"]
+    LOG --> UI["UI: Audit Card per-layer status"]
 ```
 
 ### Request Lifecycle (sequence)
@@ -72,101 +72,6 @@ sequenceDiagram
     W-->>U: Chat bubble + Audit details
   end
 ```
-**Shows all layers and how data flows through them.**
-```mermaid
-flowchart TD
-    A[User Prompt] --> N["Normalize (lowercase, whitespace)"]
-    N --> S[Sanitizer / DFA]
-    N --> Z["ZKP Safety Gate"]
-    N --> K["SNARK Policy Proof"]
-    S --> D{Decision}
-    Z --> D
-    K --> D
-    D -->|blocked| B[Audit Logs]
-    D -->|allowed| G[Guardrails]
-    G --> LLM[LLM API]
-    LLM --> OF[Output Filter]
-    OF -->|blocked| B
-    OF -->|allowed| LOG[Encrypted Logs]
-    LOG --> UI[Audit Card]
-```
-
-**Key Features**:
-- Normalization → Sanitization → Cryptographic gates → Guardrails → Output filtering
-- Logs are encrypted (AES-GCM) and cryptographically signed
-
----
-
-## 2. Request Lifecycle
-**End-to-end control flow for a single request.**
-
-```mermaid
-sequenceDiagram
-  participant U as User
-  participant W as Web App
-  participant P as SNARK Prover
-  participant M as LLM
-
-  U->>W: POST /
-  W->>W: Normalize + Sanitize
-  W->>W: ZKP generate+verify
-  alt SNARK enabled
-    W->>P: /prove {prompt, policy_id}
-    P-->>W: {proof, publicSignals}
-  end
-  alt Blocked
-    W-->>U: Block + Audit
-  else Allowed
-    W->>M: chat.completions
-    M-->>W: response
-    W->>W: Output filter
-    W->>W: Encrypted logging
-    W-->>U: Response + Audit
-  end
-```
----
-
-## 3. Evaluation Workflow
-**Dataset processing pipeline.**
-
-```mermaid
-flowchart LR
-    DS1[Built-in Datasets]
-    DS2[Generated Data]
-    DS3[Custom CSV/JSON]
-    
-    DS1 & DS2 & DS3 --> RUN[run_evaluation.py]
-    RUN --> METRICS["Accuracy/Precision/Recall"]
-    RUN --> FIGS[Performance Plots]
-    RUN --> CSV[Result CSVs]
-```
-
----
-
-## 4. Deployment Workflows
-
-```mermaid
-flowchart LR
-  subgraph Local
-    L1[Flask App] -->|:5000| UI
-    L2[SNARK Prover] -->|:5001| L1
-  end
-  
-  subgraph Docker
-    C1[compose up] --> APP[Gunicorn]
-    C1 --> PROVER[SNARK Service]
-  end
-  
-  subgraph Production
-    P1[Gunicorn] --> P2[Reverse Proxy]
-    P3[Ollama] --> P1
-  end
-```
-
-**Environments**:
-- **Local**: Flask + optional SNARK prover.
-- **Docker**: App + prover as services.
-- **Production**: Secure proxy, non-root execution, external LLM.
 
 ## Layers (What the solution consists of)
 Each layer is independent and composable. Blocking occurs on first failing layer (strict mode can enforce stricter logic).
@@ -207,6 +112,44 @@ Each layer is independent and composable. Blocking occurs on first failing layer
 - SNARK (optional): Policy compliance without exposing the prompt
 - Logs: Confidentiality (AES‑GCM), tamper‑evidence (hash chain), non‑repudiation (signature)
 
+## Mathematical Foundations (formal sketches)
+
+### Normalization and Commitment
+- Let raw prompt be \( x \in \Sigma^* \). Define a deterministic normalizer \( n_v: \Sigma^* \to \Sigma^* \) parameterized by version \( v \) that lowercases, collapses whitespace, de‑leetspeaks, and folds homoglyphs.
+- Sample nonce \( r \leftarrow_R \{0,1\}^{\lambda} \). Compute commitment
+\[ c \;=\; H\big(n_v(x)\;\Vert\; r\big) \]
+for collision‑resistant hash \( H: \{0,1\}^* \to \{0,1\}^{\kappa} \). The pair \((c,v)\) binds all downstream proofs/logs to \(n_v(x)\).
+
+### Safety Score and Zero‑Knowledge Proof
+- Let \( R \) be the ordered list of safety rules; define a measurable safety score \( s: \Sigma^* \times \mathcal R \to [0,1] \).
+- The prover proves in zero knowledge that the statement holds without revealing \( n_v(x) \):
+\[ \exists\; r,\; w:\; c = H(n_v(x)\Vert r)\;\wedge\; s(n_v(x),R) \ge \tau \]
+where \( w \) is the witness for the safety computation and \( \tau \in (0,1] \) is the threshold. Soundness ensures unsafe prompts (\(s<\tau\)) fail; zero‑knowledge ensures \(n_v(x)\) is hidden.
+
+### DFA / Policy Predicate
+- Sanitizer implements a DFA‑style predicate \( \mathsf{DFA}(n_v(x)) \in \{0,1\} \) detecting high‑risk phrases. A sufficient (but not necessary) blocking condition is
+\[ \mathsf{Block}_{\text{pre}}(x) \;=\; (\mathsf{DFA}(n_v(x))=1)\;\lor\; (s(n_v(x),R) < \tau) \]
+
+### Optional SNARK Policy Compliance
+- With real circuits, define a relation \( \mathcal{R}_{\text{policy}} \) that enforces policy \(P\). The prover produces a succinct non‑interactive argument \( \pi \) such that
+\[ (\pi, y) \in \mathsf{SNARK}\iff \exists\, w:\; \mathcal{R}_{\text{policy}}(n_v(x), w, y)=1 \]
+where public signals \( y \) include \(c,\, \tau,\, \text{policy\_id}\). Verifier accepts iff \(\mathsf{Verify}(\pi,y)=\text{true}\).
+
+### Guardrails and Output Filtering
+- Guardrails prepend a fixed safety prefix \( g \) to produce \( g\Vert n_v(x) \), reducing jailbreak success probability during generation.
+- Output filter enforces a post‑predicate \( \mathsf{OF}(y)\in\{0,1\} \) on model output \( y \), blocking sensitive tokens/structures.
+
+### Decision Logic (Allow/Block)
+- Let \(T=\mathsf{DFA}(n_v(x))\), \(Z=\mathsf{VerifyZK}(c,\tau)=1\) iff the ZK proof verifies, \(K=\mathsf{VerifySNARK}(\pi,y)\) (or \(\top\) if disabled), and \(O=\mathsf{OF}(y)\).
+- Pre‑generation allow condition:
+\[ \mathsf{Allow}_{\text{pre}} \;=\; (\neg T) \wedge Z \wedge K \]
+- End‑to‑end allow condition (after generation):
+\[ \mathsf{Allow}_{\text{e2e}} \;=\; \mathsf{Allow}_{\text{pre}} \wedge O \]
+
+### Privacy‑Preserving Audit (Integrity)
+- For interaction \(i\) with proof commitments \(c^i_p\) (prompt) and \(c^i_r\) (response), define the hash‑chain
+\[ h_i \;=\; H\big(c^i_p\Vert c^i_r\Vert h_{i-1}\big),\quad h_0=\mathbf{0}^{\kappa} \]
+- Sign each link with Ed25519: \( \sigma_i = \mathsf{Sign}_{sk}(h_i) \). Verifiers check \( \mathsf{Verify}_{pk}(h_i, \sigma_i) \) and that the chain recomputes, ensuring tamper‑evidence without revealing \(x\).
 ## Datasets
 - Included in this repo:
   - `data/4kdata.csv` and `data/4kdata.json` — balanced, small dataset
@@ -278,6 +221,43 @@ Security posture for LLM connectivity:
 - Normalize and inspect prompts locally; ZKP/SNARK decisions run locally (SNARK prover can be local or remote per env).
 - All logs are encrypted at rest (AES-GCM), chained, and signed to detect tampering.
 
+## Deployment workflows
+```mermaid
+flowchart LR
+  subgraph Local Dev
+    L1[python app.py] --> UI1[http://localhost:5000]
+    L2[python zk/snark_prover.py] --> P1[http://127.0.0.1:5001]
+  end
+  subgraph Docker Compose
+    C1[docker compose up --build]
+    C1 --> APP1[llm-security: gunicorn]
+    C1 --> PROV1[snark-prover]
+  end
+  subgraph Production
+    P2[gunicorn non‑root]
+    P3[Ollama or API]
+    P4[Reverse proxy / SSL]
+    P5[Secret store / env]
+  end
+```
+
+Quick starts:
+```bash
+# Local with Ollama
+export OLLAMA_BASE_URL=http://localhost:11434/v1
+export OLLAMA_MODEL=gemma:2b
+python app.py
+
+# With SNARK (simulated)
+export SNARK_ENABLED=true
+export SNARK_PROVER_URL=http://127.0.0.1:5001/prove
+export SNARK_VERIFY_URL=http://127.0.0.1:5001/verify
+python zk/snark_prover.py
+
+# Docker Compose
+docker compose up --build
+```
+
 ### Optional: SNARK service (simulated or snarkjs if configured)
 ```bash
 export SNARK_ENABLED=true
@@ -313,6 +293,20 @@ Reproducibility considerations:
 - Datasets included (4k/50k) are versioned in repo; 200k must be generated locally to avoid repository bloat.
 - Seeded data generation allows controlled variance (via `--seed`) for robust experimentation.
 
+### Evaluation workflow (datasets → metrics)
+```mermaid
+flowchart LR
+    DS1[Built‑in 4k/50k/200k]
+    DS2[Generator\n(data/generate_dataset.py)]
+    DS3[Custom JSON/CSV\n(prompt,label)]
+
+    DS1 & DS2 & DS3 --> RUN["run_evaluation.py\n(-d <dataset path>)"]
+    RUN --> CALC["Per‑method metrics\nAccuracy/Precision/Recall/F1/Latency"]
+    RUN --> FIGS["Figures (PNG)\nperformance/confusion/latency"]
+    RUN --> METRICS["metrics_*.csv"]
+    RUN --> DETAILS["detailed_results_*.csv"]
+```
+
 ### Methods compared
 - ZKP Framework (this project’s core layer)
 - Regex Baseline (extended sanitizer)
@@ -330,10 +324,12 @@ Reproducibility considerations:
 - Defenses: normalizer + DFA + ZKP + optional SNARK + output filtering + audit logging
 - Out‑of‑scope: perfect semantic understanding and zero false negatives under unrestricted attacker effort
 
-## Limitations and Future Work
-- Real SNARK circuits can replace the simulated path. The service endpoints and environment variables are already wired.
-- Transformer‑based classifiers can be enabled for improved semantic coverage.
-- Policy and DFA expansions, adaptive thresholds, and per‑layer ROC/PR curves are recommended for production hardening.
+## Limitations
+- Adversary adaptability: highly adaptive, human‑crafted jailbreaks may still evade detection; combine with model‑side guardrails and human review for critical flows.
+- Policy incompleteness: DFA patterns and safety rules need continuous updates; domain‑specific policies should be added for best coverage.
+- Threshold sensitivity: ZKP safety threshold trades precision/recall; we provide ablation scripts to choose values per deployment.
+- Performance budgets: enabling all layers (e.g., transformer detector) increases latency; tune FAST_EVAL and layer toggles for your SLOs.
+- SNARK availability: if `SNARK_ENABLED=true` and real proving fails at runtime, the prover returns `valid=false` and the app will block; to force simulated proving set no `SNARKJS_PATH` or remove artifacts.
 
 ## Environment Variables (selected)
 - Core
@@ -383,7 +379,8 @@ ls -lh data/4kdata.csv data/50kdata.csv
 python data/generate_dataset.py -b 2000 -a 2000 -f json -o data/4kdata.json --seed 42
 python data/generate_dataset.py -b 25000 -a 25000 -f json -o data/50kdata.json
 python data/generate_dataset.py -b 100000 -a 100000 -f csv -o data/200kdata.csv
-# Kaggle 
+
+# Kaggle (optional)
 tools/fetch_kaggle_dataset.sh <user/dataset-slug> kaggle_dataset.jsonl data/kaggle_dataset.csv
 # Or:
 python tools/convert_jsonl_to_csv.py -i data/kaggle_dataset.jsonl -o data/kaggle_dataset.csv --lowercase-label
@@ -451,7 +448,7 @@ python -c "import requests; print(requests.get('http://127.0.0.1:5000/verify').t
 This validates the tamper‑evident log chain: integrity should report `VALID` unless files were modified.
 
 
-### Kaggle dataset 
+### Kaggle dataset (optional)
 - If you have a Kaggle JSONL (e.g., `kaggle_dataset.jsonl`), you can fetch and convert it to CSV with:
 ```bash
 # Requires kaggle CLI authenticated via KAGGLE_USERNAME/KAGGLE_KEY
