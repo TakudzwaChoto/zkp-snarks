@@ -478,6 +478,7 @@ class AdvancedEvaluationPipeline:
     
     def calculate_metrics(self, results: List[DetectionResult]) -> Dict[str, float]:
         """Calculate comprehensive metrics"""
+        # Handle both 'benign'/'safe' and 'adversarial' label formats
         y_true = [1 if r.true_label == "adversarial" else 0 for r in results]
         y_pred = [1 if r.predicted_label == "adversarial" else 0 for r in results]
         confidences = [r.confidence for r in results]
@@ -564,8 +565,8 @@ class AdvancedEvaluationPipeline:
             print(f"  • Average Detection Time: {metric['avg_detection_time']*1000:.2f}ms")
             
             # Show example errors
-            false_positives = [r for r in results if r.true_label == "safe" and r.predicted_label == "adversarial"]
-            false_negatives = [r for r in results if r.true_label == "adversarial" and r.predicted_label == "safe"]
+            false_positives = [r for r in results if r.true_label in ["safe", "benign"] and r.predicted_label == "adversarial"]
+            false_negatives = [r for r in results if r.true_label == "adversarial" and r.predicted_label in ["safe", "benign"]]
             
             if false_positives:
                 print(f"  • False Positive Example: '{false_positives[0].prompt}'")
@@ -661,7 +662,7 @@ class AdvancedEvaluationPipeline:
             
             # 4. Enhanced Confidence distribution with beautiful colors
             zkp_confidences = [r.confidence for r in zkp_results]
-            safe_confidences = [r.confidence for r in zkp_results if r.true_label == "safe"]
+            safe_confidences = [r.confidence for r in zkp_results if r.true_label in ["safe", "benign"]]
             adv_confidences = [r.confidence for r in zkp_results if r.true_label == "adversarial"]
             
             axes[1, 1].hist(safe_confidences, alpha=0.8, label='Safe Prompts', bins=15, 
