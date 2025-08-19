@@ -77,22 +77,23 @@ sequenceDiagram
 ## 1. High-Level Architecture
 **Shows all layers and how data flows through them.**
 
+
 ```mermaid
 flowchart TD
-    A[User Prompt] --> N["Normalize\n(lowercase, whitespace,\nde‑leetspeak, homoglyphs)"]
+    A[User Prompt] --> N["Normalize (lowercase, whitespace)"]
     N --> S[Sanitizer / DFA]
-    N --> Z["ZKP Safety Gate\n(score ≥ τ, commitment, verify)"]
-    N --> K["SNARK Policy Proof\n(optional)"]
+    N --> Z["ZKP Safety Gate"]
+    N --> K["SNARK Policy Proof"]
     S --> D{Decision}
     Z --> D
     K --> D
-    D -->|blocked| B[Audit + Flash + Logs]
-    D -->|allowed| G[Guardrails\n(safe prefix)]
-    G --> LLM[Model\n(Ollama/API)]
+    D -->|blocked| B[Audit Logs]
+    D -->|allowed| G[Guardrails]
+    G --> LLM[LLM API]
     LLM --> OF[Output Filter]
     OF -->|blocked| B
-    OF -->|allowed| LOG["Privacy‑preserving Log\n(AES‑GCM + chain + sig)"]
-    LOG --> UI["Audit Card\n(per‑layer status)"]
+    OF -->|allowed| LOG[Encrypted Logs]
+    LOG --> UI[Audit Card]
 ```
 
 **Key Features**:
