@@ -286,10 +286,12 @@ flowchart LR
 - Defenses: normalizer + DFA + ZKP + optional SNARK + output filtering + audit logging
 - Out‑of‑scope: perfect semantic understanding and zero false negatives under unrestricted attacker effort
 
-## Limitations and Future Work
-- Real SNARK circuits can replace the simulated path. The service endpoints and environment variables are already wired.
-- Transformer‑based classifiers can be enabled for improved semantic coverage.
-- Policy and DFA expansions, adaptive thresholds, and per‑layer ROC/PR curves are recommended for production hardening.
+## Limitations
+- Adversary adaptability: highly adaptive, human‑crafted jailbreaks may still evade detection; combine with model‑side guardrails and human review for critical flows.
+- Policy incompleteness: DFA patterns and safety rules need continuous updates; domain‑specific policies should be added for best coverage.
+- Threshold sensitivity: ZKP safety threshold trades precision/recall; we provide ablation scripts to choose values per deployment.
+- Performance budgets: enabling all layers (e.g., transformer detector) increases latency; tune FAST_EVAL and layer toggles for your SLOs.
+- SNARK availability: if `SNARK_ENABLED=true` and real proving fails at runtime, the prover returns `valid=false` and the app will block; to force simulated proving set no `SNARKJS_PATH` or remove artifacts.
 
 ## Environment Variables (selected)
 - Core
