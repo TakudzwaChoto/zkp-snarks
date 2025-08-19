@@ -21,3 +21,5 @@ tk.pub
 !results_with_beautiful_visualizations/*.csv
 !results_with_beautiful_visualizations/*.png
 !beautiful_visualizations_demo/*.png
+!results_kaggle_full/*.csv
+!results_kaggle_full/*.png
