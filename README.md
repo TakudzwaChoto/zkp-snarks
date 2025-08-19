@@ -383,8 +383,7 @@ ls -lh data/4kdata.csv data/50kdata.csv
 python data/generate_dataset.py -b 2000 -a 2000 -f json -o data/4kdata.json --seed 42
 python data/generate_dataset.py -b 25000 -a 25000 -f json -o data/50kdata.json
 python data/generate_dataset.py -b 100000 -a 100000 -f csv -o data/200kdata.csv
-
-# Kaggle (optional)
+# Kaggle 
 tools/fetch_kaggle_dataset.sh <user/dataset-slug> kaggle_dataset.jsonl data/kaggle_dataset.csv
 # Or:
 python tools/convert_jsonl_to_csv.py -i data/kaggle_dataset.jsonl -o data/kaggle_dataset.csv --lowercase-label
@@ -452,7 +451,7 @@ python -c "import requests; print(requests.get('http://127.0.0.1:5000/verify').t
 This validates the tamper‑evident log chain: integrity should report `VALID` unless files were modified.
 
 
-### Kaggle dataset (optional)
+### Kaggle dataset 
 - If you have a Kaggle JSONL (e.g., `kaggle_dataset.jsonl`), you can fetch and convert it to CSV with:
 ```bash
 # Requires kaggle CLI authenticated via KAGGLE_USERNAME/KAGGLE_KEY
