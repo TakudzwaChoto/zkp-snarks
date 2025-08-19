@@ -1,4 +1,4 @@
-﻿__pycache__/
+__pycache__/
 *.pyc
 *.db
 keys/
@@ -7,3 +7,17 @@ tk.pub
 *.csv
 *.png
 .cache/
+!
+!results_kaggle/*.csv
+!results_kaggle/*.png
+!results_4k_beautiful/*.csv
+!results_4k_beautiful/*.png
+!results_50k_beautiful/*.csv
+!results_50k_beautiful/*.png
+!results_50k_beautiful_corrected/*.csv
+!results_50k_beautiful_corrected/*.png
+!results_50k_beautiful_final/*.csv
+!results_50k_beautiful_final/*.png
+!results_with_beautiful_visualizations/*.csv
+!results_with_beautiful_visualizations/*.png
+!beautiful_visualizations_demo/*.png
