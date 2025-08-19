@@ -72,12 +72,7 @@ sequenceDiagram
     W-->>U: Chat bubble + Audit details
   end
 ```
-# Mermaid Diagrams and Descriptions
-
-## 1. High-Level Architecture
 **Shows all layers and how data flows through them.**
-
-
 ```mermaid
 flowchart TD
     A[User Prompt] --> N["Normalize (lowercase, whitespace)"]
@@ -129,7 +124,6 @@ sequenceDiagram
     W-->>U: Response + Audit
   end
 ```
-
 ---
 
 ## 3. Evaluation Workflow
@@ -173,7 +167,6 @@ flowchart LR
 - **Local**: Flask + optional SNARK prover.
 - **Docker**: App + prover as services.
 - **Production**: Secure proxy, non-root execution, external LLM.
-
 
 ## Layers (What the solution consists of)
 Each layer is independent and composable. Blocking occurs on first failing layer (strict mode can enforce stricter logic).
