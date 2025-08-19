@@ -1,5 +1,18 @@
 ## ZKP-Augmented LLM Security: Multi-Layer Adversarial Prompt Protection with Privacy-Preserving Audit Trails
 
+### Latest Results (Visualizations)
+- 4k dataset results: see `results_4k_beautiful/` (PNG + CSV in repo)
+- 50k dataset results: see `results_50k_beautiful_final/` and `results_50k_beautiful_corrected/`
+- Kaggle-converted dataset results: see `results_kaggle/`
+- All archives in the latest GitHub Release (pinned): visit the Releases tab and download `artifacts/*.tar.gz`
+
+Key charts (per folder):
+- `performance_metrics_enhanced.png`
+- `confusion_matrix_enhanced.png`
+- `latency_comparison_enhanced.png`
+- `method_distribution_pie.png`
+- `performance_trends_line.png`
+
 ### Abstract
 Large Language Models (LLMs) are highly susceptible to adversarial prompts (aka prompt injection), where carefully crafted instructions manipulate model behavior, extract secrets, or bypass safety filters. This project proposes and implements a practical, end-to-end, multi-layer security framework that combines fast heuristics with cryptographic assurances. The core novelty is a Zero-Knowledge Proof (ZKP)-augmented pipeline that produces privacy-preserving, tamper-evident audit trails while deterministically enforcing layered defenses before, during, and after generation.
 
