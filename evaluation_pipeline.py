@@ -433,16 +433,45 @@ class AdvancedEvaluationPipeline:
         }
         
         all_results = {}
-        
+
+        # Optional parallelism (preserves exact logic; just schedules work)
+        try:
+            workers_env = os.getenv("EVAL_WORKERS", "1").strip()
+            num_workers = max(1, int(workers_env))
+        except Exception:
+            num_workers = 1
+
         for method_name, method_func in methods.items():
             print(f"\n📊 Evaluating {method_name}...")
-            method_results = []
-            
-            for prompt, true_label in self.test_dataset:
-                result = method_func(prompt)
-                result.true_label = true_label
-                method_results.append(result)
-            
+            method_results: List[DetectionResult] = []
+
+            if num_workers > 1 and len(self.test_dataset) > 1000:
+                # Use multiprocessing to parallelize per-prompt evaluation
+                try:
+                    from multiprocessing import get_context
+                    ctx = get_context("fork")  # preserves state safely on Linux
+                    prompts_only = [prompt for prompt, _ in self.test_dataset]
+                    with ctx.Pool(processes=num_workers) as pool:
+                        # Chunk size tuned for large datasets
+                        chunk_size = max(50, len(prompts_only) // (num_workers * 10))
+                        mapped: List[DetectionResult] = pool.map(method_func, prompts_only, chunksize=chunk_size)
+                    # Attach true labels post-hoc
+                    for det, (_, true_label) in zip(mapped, self.test_dataset):
+                        det.true_label = true_label
+                        method_results.append(det)
+                except Exception as e:
+                    print(f"⚠️ Parallel evaluation fallback to sequential for {method_name}: {e}")
+                    for prompt, true_label in self.test_dataset:
+                        result = method_func(prompt)
+                        result.true_label = true_label
+                        method_results.append(result)
+            else:
+                # Sequential path (original behavior)
+                for prompt, true_label in self.test_dataset:
+                    result = method_func(prompt)
+                    result.true_label = true_label
+                    method_results.append(result)
+
             all_results[method_name] = method_results
         
         return all_results
