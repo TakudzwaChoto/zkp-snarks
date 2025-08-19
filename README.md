@@ -112,6 +112,44 @@ Each layer is independent and composable. Blocking occurs on first failing layer
 - SNARK (optional): Policy compliance without exposing the prompt
 - Logs: Confidentiality (AES‑GCM), tamper‑evidence (hash chain), non‑repudiation (signature)
 
+## Mathematical Foundations (formal sketches)
+
+### Normalization and Commitment
+- Let raw prompt be \( x \in \Sigma^* \). Define a deterministic normalizer \( n_v: \Sigma^* \to \Sigma^* \) parameterized by version \( v \) that lowercases, collapses whitespace, de‑leetspeaks, and folds homoglyphs.
+- Sample nonce \( r \leftarrow_R \{0,1\}^{\lambda} \). Compute commitment
+\[ c \;=\; H\big(n_v(x)\;\Vert\; r\big) \]
+for collision‑resistant hash \( H: \{0,1\}^* \to \{0,1\}^{\kappa} \). The pair \((c,v)\) binds all downstream proofs/logs to \(n_v(x)\).
+
+### Safety Score and Zero‑Knowledge Proof
+- Let \( R \) be the ordered list of safety rules; define a measurable safety score \( s: \Sigma^* \times \mathcal R \to [0,1] \).
+- The prover proves in zero knowledge that the statement holds without revealing \( n_v(x) \):
+\[ \exists\; r,\; w:\; c = H(n_v(x)\Vert r)\;\wedge\; s(n_v(x),R) \ge \tau \]
+where \( w \) is the witness for the safety computation and \( \tau \in (0,1] \) is the threshold. Soundness ensures unsafe prompts (\(s<\tau\)) fail; zero‑knowledge ensures \(n_v(x)\) is hidden.
+
+### DFA / Policy Predicate
+- Sanitizer implements a DFA‑style predicate \( \mathsf{DFA}(n_v(x)) \in \{0,1\} \) detecting high‑risk phrases. A sufficient (but not necessary) blocking condition is
+\[ \mathsf{Block}_{\text{pre}}(x) \;=\; (\mathsf{DFA}(n_v(x))=1)\;\lor\; (s(n_v(x),R) < \tau) \]
+
+### Optional SNARK Policy Compliance
+- With real circuits, define a relation \( \mathcal{R}_{\text{policy}} \) that enforces policy \(P\). The prover produces a succinct non‑interactive argument \( \pi \) such that
+\[ (\pi, y) \in \mathsf{SNARK}\iff \exists\, w:\; \mathcal{R}_{\text{policy}}(n_v(x), w, y)=1 \]
+where public signals \( y \) include \(c,\, \tau,\, \text{policy\_id}\). Verifier accepts iff \(\mathsf{Verify}(\pi,y)=\text{true}\).
+
+### Guardrails and Output Filtering
+- Guardrails prepend a fixed safety prefix \( g \) to produce \( g\Vert n_v(x) \), reducing jailbreak success probability during generation.
+- Output filter enforces a post‑predicate \( \mathsf{OF}(y)\in\{0,1\} \) on model output \( y \), blocking sensitive tokens/structures.
+
+### Decision Logic (Allow/Block)
+- Let \(T=\mathsf{DFA}(n_v(x))\), \(Z=\mathsf{VerifyZK}(c,\tau)=1\) iff the ZK proof verifies, \(K=\mathsf{VerifySNARK}(\pi,y)\) (or \(\top\) if disabled), and \(O=\mathsf{OF}(y)\).
+- Pre‑generation allow condition:
+\[ \mathsf{Allow}_{\text{pre}} \;=\; (\neg T) \wedge Z \wedge K \]
+- End‑to‑end allow condition (after generation):
+\[ \mathsf{Allow}_{\text{e2e}} \;=\; \mathsf{Allow}_{\text{pre}} \wedge O \]
+
+### Privacy‑Preserving Audit (Integrity)
+- For interaction \(i\) with proof commitments \(c^i_p\) (prompt) and \(c^i_r\) (response), define the hash‑chain
+\[ h_i \;=\; H\big(c^i_p\Vert c^i_r\Vert h_{i-1}\big),\quad h_0=\mathbf{0}^{\kappa} \]
+- Sign each link with Ed25519: \( \sigma_i = \mathsf{Sign}_{sk}(h_i) \). Verifiers check \( \mathsf{Verify}_{pk}(h_i, \sigma_i) \) and that the chain recomputes, ensuring tamper‑evidence without revealing \(x\).
 ## Datasets
 - Included in this repo:
   - `data/4kdata.csv` and `data/4kdata.json` — balanced, small dataset
