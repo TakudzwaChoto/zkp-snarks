@@ -296,18 +296,33 @@ Reproducibility considerations:
 ### Evaluation workflow (datasets → metrics)
 ```mermaid
 flowchart LR
-    DS1[Built‑in 4k/50k/200k]
-    DS2[Generator\n(data/generate_dataset.py)]
-    DS3[Custom JSON/CSV\n(prompt,label)]
-
-    DS1 & DS2 & DS3 --> RUN["run_evaluation.py\n(-d <dataset path>)"]
-    RUN --> CALC["Per‑method metrics\nAccuracy/Precision/Recall/F1/Latency"]
-    RUN --> FIGS["Figures (PNG)\nperformance/confusion/latency"]
-    RUN --> METRICS["metrics_*.csv"]
-    RUN --> DETAILS["detailed_results_*.csv"]
+    DS1[Built-in Datasets]
+    DS2[Generated Data]
+    DS3[Custom Input Data]
+    
+    DS1 -->|4k/50k/200k samples| RUN
+    DS2 -->|python data/generate_dataset.py| RUN
+    DS3 -->|JSON/CSV with labels| RUN
+    
+    RUN[run_evaluation.py] --> CALC[Metrics Calculation]
+    RUN --> FIGS[Visualizations]
+    RUN --> METRICS[Result Files]
+    
+    CALC --> M1[Accuracy]
+    CALC --> M2[Precision]
+    CALC --> M3[Recall]
+    CALC --> M4[F1 Score]
+    CALC --> M5[Latency]
+    
+    FIGS --> F1[Performance Plots]
+    FIGS --> F2[Confusion Matrix]
+    FIGS --> F3[Latency Charts]
+    
+    METRICS --> CSV1[metrics.csv]
+    METRICS --> CSV2[detailed_results.csv]
 ```
-# Secure LLM Gateway Architecture
 
+# Secure LLM Gateway Architecture
 ## 1. High-Level Security Architecture
 ```mermaid
 flowchart TD
@@ -484,7 +499,6 @@ flowchart LR
 ZKP‑Augmented LLM Security: Multi‑Layer Adversarial Prompt Protection with Privacy‑Preserving Audit Trails
 
 ## Experimental Protocols (Reproducibility)
-
 ### A. Environment Setup
 ```bash
 pip install -r requirements.txt
