@@ -23,3 +23,11 @@ tk.pub
 !beautiful_visualizations_demo/*.png
 !results_kaggle_full/*.csv
 !results_kaggle_full/*.png
+!results_official_4k/*.csv
+!results_official_4k/*.png
+!results_official_4k_figs/*.csv
+!results_official_4k_figs/*.png
+!results_official_6k/*.csv
+!results_official_6k/*.png
+!results_official_50k/*.csv
+!results_official_50k/*.png
