@@ -12,10 +12,13 @@ def sanitize_prompt(prompt: str) -> Tuple[str, bool, List[str]]:
     """
     suspicious_patterns = [
         # Direct instruction bypass
-        r"ignore\s*(all|previous|the)?\s*instructions?",
+        r"ignore\s*(all|any|previous|the)?\s*(prior\s*)?instructions?",
+        r"disregard\s*(all|any|previous|the)?\s*(prior\s*)?instructions?",
+        r"forget\s*(all|any|previous|the)?\s*(prior\s*)?instructions?",
         r"system\s*prompt", r"role\s*play\s+as", r"act\s+as",
         r"output.*system\s*prompt", r"show.*password", r"admin.*credentials", r"hacked",
         r"bypass", r"override", r"simulate", r"impersonate", r"disregard(\s+above|\s+previous)?",
+        r"jailbreak|unfiltered|unrestricted|no\s*filter|no\s*restrictions?",
         r"reset", r"reveal", r"leak", r"exploit", r"malicious", r"jailbreak", r"unfiltered",
         r"unrestricted", r"no\s*filter", r"no\s*restrictions?", r"no\s*rules?", r"no\s*guidelines?",
         r"no\s*policy", r"no\s*censorship", r"no\s*moderation", r"no\s*ethical", r"no\s*morals?",
@@ -32,7 +35,7 @@ def sanitize_prompt(prompt: str) -> Tuple[str, bool, List[str]]:
         r"ignore\s*encoding", r"ignore\s*decoding", r"ignore\s*parsing", r"ignore\s*serialization", r"ignore\s*deserialization",
         r"ignore\s*injection", r"ignore\s*XSS", r"ignore\s*CSRF", r"ignore\s*SSRF", r"ignore\s*RCE", r"ignore\s*LFI", r"ignore\s*RFI",
         # Obfuscation attempts (hex, base64, unicode escapes)
-        r"\\x[0-9a-fA-F]{2,}", r"\\u[0-9a-fA-F]{4,}", r"[A-Za-z0-9+/=]{16,}\s*\(base64\)",
+        r"\\x[0-9a-fA-F]{2,}", r"\\u[0-9a-fA-F]{4,}", r"[A-Za-z0-9+/=]{16,}(?:\s*\(base64\))?",
         # Social engineering
         r"pretend you are", r"as an admin", r"as a developer", r"as a security researcher",
         # Prompt chaining
@@ -41,6 +44,9 @@ def sanitize_prompt(prompt: str) -> Tuple[str, bool, List[str]]:
         r"repeat this prompt", r"copy this prompt", r"print the previous instructions",
         # Unicode homoglyphs (e.g., Cyrillic a, Greek o)
         r"[а-яА-ЯёЁ]+", r"[α-ωΑ-Ω]+",
+        # Indirect variants and phrasing
+        r"(please\s*)?(reveal|show|display|expose|unveil|leak|share|provide|tell|output|print|return)\s+(the\s*)?(system|internal|secret|password|api\s*key|token|configuration|settings)",
+        r"act\s*(exactly\s*)?as\s*(an|a)?\s*(admin|root|developer|hacker)",
         # Encoded/obfuscated payloads
         r"%[0-9a-fA-F]{2,}",
         # Sensitive paths and variants

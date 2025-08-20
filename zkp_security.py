@@ -162,16 +162,16 @@ class ZKPSecurity:
         # Check high-risk patterns (count all)
         for pattern in high_risk_patterns:
             if pattern in prompt_lower:
-                score -= 0.4
+                score -= 0.5
         
         # Check medium-risk patterns
         for pattern in medium_risk_patterns:
             if pattern in prompt_lower:
-                score -= 0.2
+                score -= 0.25
         
         # Cross-token signals
         if ("ignore" in prompt_lower and "instruction" in prompt_lower):
-            score -= 0.3
+            score -= 0.4
         # Dialogue-style wrapper often used for indirect injection
         if ("user:" in prompt_lower and ("assistant:" in prompt_lower or "system:" in prompt_lower)):
             score -= 0.2

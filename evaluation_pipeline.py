@@ -84,7 +84,8 @@ class AdvancedEvaluationPipeline:
         thr = os.getenv("ZKP_THRESHOLD")
         if thr:
             try:
-                self.zkp_security.verify_threshold = float(thr)
+                # Align with ZKPSecurity internal threshold name
+                self.zkp_security.zkp_min_score = float(thr)
             except Exception:
                 pass
         
@@ -167,7 +168,18 @@ class AdvancedEvaluationPipeline:
             if pd is None:
                 with open(path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
-                return [(row['prompt'], row['label']) for row in data]
+                # Normalize labels for robustness across datasets
+                records: List[Tuple[str, str]] = []
+                for row in data:
+                    prompt = row.get('prompt', '')
+                    label = str(row.get('label', '')).strip().lower()
+                    if label in ['malicious', 'adversarial', 'attack']:
+                        label = 'adversarial'
+                    elif label in ['benign', 'safe', 'normal', 'harmless', 'clean', 'non-malicious']:
+                        label = 'benign'
+                    if prompt and label:
+                        records.append((prompt, label))
+                return records
             df = pd.read_json(path)  # type: ignore
         elif path.endswith('.csv'):
             # Support two CSV schemas:
@@ -232,7 +244,19 @@ class AdvancedEvaluationPipeline:
                 # normalize column case
                 pcol = [c for c in df.columns if c.lower() == 'prompt'][0]  # type: ignore
                 lcol = [c for c in df.columns if c.lower() == 'label'][0]  # type: ignore
-                return list(zip(df[pcol].astype(str).tolist(), df[lcol].astype(str).tolist()))  # type: ignore
+                # Map label variants to canonical values
+                lbls = df[lcol].astype(str).str.lower().replace({
+                    'malicious': 'adversarial',
+                    'attack': 'adversarial',
+                    'adversarial': 'adversarial',
+                    'benign': 'benign',
+                    'safe': 'benign',
+                    'normal': 'benign',
+                    'harmless': 'benign',
+                    'clean': 'benign',
+                    'non-malicious': 'benign',
+                })  # type: ignore
+                return list(zip(df[pcol].astype(str).tolist(), lbls.astype(str).tolist()))  # type: ignore
             elif {'benign', 'adversarial'}.issubset(cols):
                 bcol = [c for c in df.columns if c.lower() == 'benign'][0]  # type: ignore
                 acol = [c for c in df.columns if c.lower() == 'adversarial'][0]  # type: ignore
