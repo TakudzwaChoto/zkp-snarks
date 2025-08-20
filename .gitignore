@@ -27,7 +27,7 @@ tk.pub
 !results_official_4k/*.png
 !results_official_4k_figs/*.csv
 !results_official_4k_figs/*.png
-!results_official_6k/*.csv
-!results_official_6k/*.png
+results_official_6k/
+results_official_6k_figs/
 !results_official_50k/*.csv
 !results_official_50k/*.png
