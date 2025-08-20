@@ -66,12 +66,15 @@ class UniversalEvaluator:
         if path.suffix.lower() == '.json':
             print(f"📁 Detected JSON dataset: {dataset_path}")
             return self.convert_json_to_csv(dataset_path)
+        elif path.suffix.lower() == '.jsonl':
+            print(f"📁 Detected JSONL dataset: {dataset_path}")
+            return self.convert_jsonl_to_csv(dataset_path)
         elif path.suffix.lower() == '.csv':
             print(f"📁 Detected CSV dataset: {dataset_path}")
             return dataset_path
         else:
             print(f"❌ Unsupported dataset format: {path.suffix}")
-            print("Supported formats: .json, .csv")
+            print("Supported formats: .json, .jsonl, .csv")
             sys.exit(1)
     
     def convert_json_to_csv(self, json_path):
@@ -130,6 +133,51 @@ class UniversalEvaluator:
                 
         except Exception as e:
             print(f"❌ Error converting JSON: {e}")
+            sys.exit(1)
+    
+    def convert_jsonl_to_csv(self, jsonl_path):
+        """Convert JSONL dataset to clean CSV format"""
+        csv_path = jsonl_path.replace('.jsonl', '_converted.csv')
+        
+        try:
+            with open(jsonl_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+            
+            with open(csv_path, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                
+                # Write header
+                writer.writerow(['prompt', 'label'])
+                
+                # Process each line (JSONL format)
+                for line in lines:
+                    line = line.strip()
+                    if line:
+                        try:
+                            item = json.loads(line)
+                            
+                            # Extract prompt and label
+                            prompt = str(item.get('prompt', '')).strip()
+                            label = str(item.get('label', '')).strip()
+                            
+                            # Map labels to our expected format
+                            if label.lower() in ['malicious', 'adversarial', 'attack']:
+                                label = 'adversarial'
+                            elif label.lower() in ['benign', 'safe', 'normal']:
+                                label = 'benign'
+                            
+                            if prompt and label:
+                                clean_prompt = ' '.join(prompt.split())
+                                writer.writerow([clean_prompt, label])
+                                
+                        except json.JSONDecodeError:
+                            continue  # Skip invalid JSON lines
+                
+                print(f"✅ Converted JSONL to CSV: {csv_path}")
+                return csv_path
+                
+        except Exception as e:
+            print(f"❌ Error converting JSONL: {e}")
             sys.exit(1)
     
     def run_evaluation(self, dataset_path, output_dir):
@@ -264,7 +312,7 @@ class UniversalEvaluator:
             fig, ax = plt.subplots(figsize=(12, 10), subplot_kw=dict(projection='polar'))
             
             radar_metrics = ['precision', 'recall', 'f1', 'accuracy']
-            methods = list(metrics['precision'].keys())
+            methods = list(metrics.keys())
             
             angles = np.linspace(0, 2 * np.pi, len(radar_metrics), endpoint=False).tolist()
             angles += angles[:1]
@@ -272,7 +320,7 @@ class UniversalEvaluator:
             colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4']
             
             for i, method in enumerate(methods):
-                values = [metrics[metric][method] for metric in radar_metrics]
+                values = [metrics[method][metric] for metric in radar_metrics]
                 values += values[:1]
                 
                 ax.plot(angles, values, 'o-', linewidth=3, markersize=8,
@@ -345,7 +393,7 @@ class UniversalEvaluator:
     def create_metrics_comparison_bars(self, metrics, output_dir, timestamp):
         """Create metrics comparison bar charts"""
         try:
-            methods = list(metrics['precision'].keys())
+            methods = list(metrics.keys())
             metric_names = ['precision', 'recall', 'f1', 'accuracy']
             
             fig, axes = plt.subplots(2, 2, figsize=(16, 12))
@@ -359,7 +407,7 @@ class UniversalEvaluator:
                 col = idx % 2
                 ax = axes[row, col]
                 
-                values = [metrics[metric][method] for method in methods]
+                values = [metrics[method][metric] for method in methods]
                 
                 bars = ax.bar(methods, values, color=colors[:len(methods)], 
                              alpha=0.8, edgecolor='white', linewidth=2)
@@ -397,13 +445,13 @@ class UniversalEvaluator:
             for method in methods:
                 row = [
                     method,
-                    f"{metrics['precision'][method]:.3f}",
-                    f"{metrics['recall'][method]:.3f}",
-                    f"{metrics['f1'][method]:.3f}",
-                    f"{metrics['accuracy'][method]:.3f}",
-                    f"{metrics['true_positives'][method]}",
-                    f"{metrics['false_negatives'][method]}",
-                    f"{metrics['avg_detection_time'][method]*1000:.2f}ms"
+                    f"{metrics[method]['precision']:.3f}",
+                    f"{metrics[method]['recall']:.3f}",
+                    f"{metrics[method]['f1']:.3f}",
+                    f"{metrics[method]['accuracy']:.3f}",
+                    f"{metrics[method]['true_positives']}",
+                    f"{metrics[method]['false_negatives']}",
+                    f"{metrics[method]['avg_detection_time']*1000:.2f}ms"
                 ]
                 table_data.append(row)
             
@@ -443,8 +491,8 @@ class UniversalEvaluator:
     def create_detection_time_comparison(self, metrics, output_dir, timestamp):
         """Create detection time comparison chart"""
         try:
-            methods = list(metrics['avg_detection_time'].keys())
-            times_ms = [metrics['avg_detection_time'][method] * 1000 for method in methods]
+            methods = list(metrics.keys())
+            times_ms = [metrics[method]['avg_detection_time'] * 1000 for method in methods]
             
             fig, ax = plt.subplots(figsize=(12, 8))
             
@@ -490,7 +538,7 @@ class UniversalEvaluator:
             colors = ['#667eea', '#764ba2', '#f093fb', '#f5576c']
             
             for i, metric in enumerate(metrics_list):
-                values = [metrics[metric][method] for method in methods]
+                values = [metrics[method][metric] for method in methods]
                 ax.plot(methods, values, marker='o', linewidth=3, markersize=8,
                        color=colors[i], label=metric.title(), alpha=0.8)
             
@@ -508,7 +556,7 @@ class UniversalEvaluator:
             
             for method_idx, method in enumerate(methods):
                 for metric_idx, metric in enumerate(metrics_list):
-                    value = metrics[metric][method]
+                    value = metrics[method][metric]
                     ax.annotate(f'{value:.3f}', 
                                (method_idx, value),
                                textcoords="offset points",
