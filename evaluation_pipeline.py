@@ -397,8 +397,8 @@ class AdvancedEvaluationPipeline:
         regex_result = self.regex_baseline(prompt)
         llm_result = self.llm_simulator(prompt)
         
-        # Weighted ensemble (ZKP gets higher weight)
-        weights = {"ZKP": 0.5, "Regex": 0.2, "LLM": 0.3}
+        # Weighted ensemble tuned for higher recall on paraphrase-heavy datasets
+        weights = {"ZKP": 0.4, "Regex": 0.4, "LLM": 0.2}
         
         zkp_score = 1 if zkp_result.predicted_label == "adversarial" else 0
         regex_score = 1 if regex_result.predicted_label == "adversarial" else 0
@@ -413,7 +413,7 @@ class AdvancedEvaluationPipeline:
         return DetectionResult(
             prompt=prompt,
             true_label="",
-            predicted_label="adversarial" if ensemble_score > 0.3 else "safe",
+            predicted_label="adversarial" if ensemble_score >= 0.25 else "safe",
             confidence=ensemble_score,
             detection_time=detection_time,
             method="Ensemble",
