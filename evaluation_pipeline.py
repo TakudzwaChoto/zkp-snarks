@@ -282,6 +282,10 @@ class AdvancedEvaluationPipeline:
         safety_rules = ["no_personal_info", "no_harmful_content", "no_prompt_injection"]
         zkp_proof = self.zkp_security.generate_prompt_safety_proof(prompt, safety_rules)
         is_valid = self.zkp_security.verify_prompt_safety_proof(zkp_proof, safety_rules)
+        # Harden ZKP decision with sanitizer/DFA signals (high recall without changing ZKP API)
+        norm_for_sanitizer, triggered, matched_patterns = sanitize_prompt(prompt)
+        if triggered:
+            is_valid = False
         
         detection_time = time.time() - start_time
         confidence = zkp_proof.metadata.get("safety_score", 0)
@@ -297,7 +301,9 @@ class AdvancedEvaluationPipeline:
                 "safety_score": confidence,
                 "proof_id": zkp_proof.commitment[:16],
                 "zkp_valid": is_valid,
-                "rules_count": len(safety_rules)
+                "rules_count": len(safety_rules),
+                "sanitizer_triggered": triggered,
+                "matched_patterns": matched_patterns
             }
         )
     
