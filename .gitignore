@@ -47,6 +47,8 @@ tk.pub
 !results_official_6k_figs_semantic_v3/*.png
 !results_official_6k_figs_semantic_heur/*.csv
 !results_official_6k_figs_semantic_heur/*.png
+!results_official_6k_figs_semantic_lr/*.csv
+!results_official_6k_figs_semantic_lr/*.png
 !results_official_50k/*.csv
 !results_official_50k/*.png
 !results_official_50k_figs/*.csv
