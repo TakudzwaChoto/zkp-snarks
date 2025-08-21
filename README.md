@@ -1,10 +1,10 @@
 ## ZKP-Augmented LLM Security: Multi-Layer Adversarial Prompt Protection with Privacy-Preserving Audit Trails
 
 ### Latest Results (Visualizations)
-- 4k dataset results: see `results_4k_beautiful/` (PNG + CSV in repo)
-- 50k dataset results: see `results_50k_beautiful_final/` and `results_50k_beautiful_corrected/`
-- Kaggle-converted dataset results: see `results_kaggle/`
-- All archives in the latest GitHub Release (pinned): visit the Releases tab and download `artifacts/*.tar.gz`
+- 4k (official evaluator): `results_official_4k_figs/` (PNG + CSV)
+- 6k Kaggle+external (official evaluator): `results_official_6k_figs_semantic_lr/` (PNG + CSV)
+- 50k (official evaluator): `results_official_50k_figs/` (PNG + CSV)
+- Legacy/archived visualizations: see `results_4k_beautiful/`, `results_50k_beautiful_*`, `results_with_beautiful_visualizations/`
 
 Key charts (per folder):
 - `performance_metrics_enhanced.png`
@@ -12,6 +12,13 @@ Key charts (per folder):
 - `latency_comparison_enhanced.png`
 - `method_distribution_pie.png`
 - `performance_trends_line.png`
+
+### Headline Metrics (Official Evaluator)
+- 4k (Ensemble): precision ≈ 1.000, recall ≈ 0.945, F1 ≈ 0.972, accuracy ≈ 0.973
+- 6k Kaggle+external (Ensemble, TF‑IDF + LR enabled): precision ≈ 0.998, recall = 1.000, F1 ≈ 0.999, accuracy ≈ 0.999
+  - CSV: `results_official_6k_figs_semantic_lr/metrics_<timestamp>.csv`
+- 50k (Ensemble): precision ≈ 0.960, recall = 1.000, F1 ≈ 0.980, accuracy ≈ 0.979
+  - CSV: `results_official_50k_figs/metrics_<timestamp>.csv`
 
 ### Abstract
 Large Language Models (LLMs) are highly susceptible to adversarial prompts (aka prompt injection), where carefully crafted instructions manipulate model behavior, extract secrets, or bypass safety filters. This project proposes and implements a practical, end-to-end, multi-layer security framework that combines fast heuristics with cryptographic assurances. The core novelty is a Zero-Knowledge Proof (ZKP)-augmented pipeline that produces privacy-preserving, tamper-evident audit trails while deterministically enforcing layered defenses before, during, and after generation.
@@ -291,14 +298,22 @@ python zk/snark_prover.py
 
 ### How to run
 ```bash
-# Ensure plotting is enabled (Agg backend is used for headless)
-FAST_EVAL=true SKIP_PLOTS=false python run_evaluation.py -d data/4kdata.csv -o results
+# 4k (official evaluator)
+FAST_EVAL=true SKIP_PLOTS=false EVAL_WORKERS=1 \
+  python run_evaluation.py -d data/4kdata.json -o results_official_4k_figs
+
+# 6k Kaggle+external (official evaluator) — enable semantic classifier (TF‑IDF+LR)
+FAST_EVAL=true SKIP_PLOTS=false EVAL_WORKERS=1 ENABLE_SEMANTIC=true SEMANTIC_THRESHOLD=0.30 \
+  python run_evaluation.py -d Prompt_INJECTION_And_Benign_DATASET_COMBINED_6K_*.csv -o results_official_6k_figs_semantic_lr
+
+# 50k (official evaluator)
+FAST_EVAL=true SKIP_PLOTS=false EVAL_WORKERS=1 \
+  python run_evaluation.py -d data/50kdata.json -o results_official_50k_figs
 ```
-Outputs under `results/`:
-- `performance_metrics.png` — accuracy/precision/recall/F1 across methods
-- `confusion_matrix.png` — confusion matrix for the ZKP layer
-- `latency_comparison.png` — average detection time per method
-- `metrics_<timestamp>.csv` — numeric metrics per method
+Outputs per run directory:
+- `performance_metrics_enhanced.png`, `confusion_matrix_enhanced.png`, `latency_comparison_enhanced.png`,
+  `method_distribution_pie.png`, `performance_trends_line.png`
+- `metrics_<YYYYMMDD_HHMMSS>.csv` — numeric metrics per method
 
 Reproducibility considerations:
 - We fix the matplotlib backend to Agg to support headless servers.
@@ -605,11 +620,11 @@ python -c "import requests; print(requests.get('http://127.0.0.1:5000/verify').t
 This validates the tamper‑evident log chain: integrity should report `VALID` unless files were modified.
 
 
-### Kaggle dataset (optional)
-- If you have a Kaggle JSONL (e.g., `kaggle_dataset.jsonl`), you can fetch and convert it to CSV with:
+### Kaggle + External dataset (6k)
+- This repository already contains a combined 6k JSONL/CSV in root (Prompt_INJECTION_And_Benign_DATASET_COMBINED_6K_*).
+- If you need to regenerate or convert:
 ```bash
-# Requires kaggle CLI authenticated via KAGGLE_USERNAME/KAGGLE_KEY
-tools/fetch_kaggle_dataset.sh <user/dataset-slug> kaggle_dataset.jsonl data/kaggle_dataset.csv
-# Or convert an already-downloaded JSONL to CSV (prompt,label):
-python tools/convert_jsonl_to_csv.py -i data/kaggle_dataset.jsonl -o data/kaggle_dataset.csv --lowercase-label
+# Convert JSONL → CSV (prompt,label) for the evaluator
+python tools/convert_jsonl_to_csv.py -i Prompt_INJECTION_And_Benign_DATASET_COMBINED_6K_*.jsonl \
+  -o Prompt_INJECTION_And_Benign_DATASET_COMBINED_6K_converted.csv --lowercase-label
 ```
