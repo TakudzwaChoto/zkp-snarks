@@ -236,7 +236,7 @@ flowchart TD
     B --> C[Sanitization Engine]
     B --> D[ZKP Safety Verification]
     B --> E[Policy Compliance Proof]
-    C --> F{Authorization Decision]
+    C --> F{Authorization Decision}
     D --> F
     E --> F
     F -->|Reject| G[Threat Audit Logging]
@@ -246,8 +246,10 @@ flowchart TD
     J -->|Reject| G
     J -->|Approve| K[Encrypted Audit Trail]
     K --> L[User Audit Dashboard]
+    
+    G --> M[Security Team Alert]
+    K --> M
 ```
-
 **Detailed Flow**:
 1. **Input Normalization**:
    - Case normalization (to lowercase)
