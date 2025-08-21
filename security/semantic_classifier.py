@@ -21,15 +21,44 @@ class SemanticModel:
     def predict(self, texts: List[str]) -> List[int]:
         if hasattr(self.pipeline, 'predict'):
             return self.pipeline.predict(texts)  # type: ignore
-        # fallback: simple heuristic
-        return [1 if any(k in t.lower() for k in ("ignore","bypass","admin","password","system prompt")) else 0 for t in texts]
+        # fallback: expanded heuristic (command-exec, obfuscation, multilingual)
+        keys = (
+            "ignore", "bypass", "admin", "password", "system prompt",
+            "execute", "run", "eval(", "system(", "subprocess", "curl ", "wget ", "rm -rf", "cat /etc/passwd",
+            "base64", "hex",
+            # French
+            "ignorez", "négligez", "contournez", "montrez",
+            # Chinese
+            "忽略", "无视", "显示",
+            # Spanish
+            "ignora", "omite", "salta", "muestra",
+            # Italian
+            "istruzioni", "mostra"
+        )
+        return [1 if any(k in t.lower() for k in keys) else 0 for t in texts]
 
     def predict_proba(self, texts: List[str]) -> List[float]:
         if hasattr(self.pipeline, 'predict_proba'):
             proba = self.pipeline.predict_proba(texts)  # type: ignore
             return proba[:, 1]
-        # fallback probabilities
-        return [0.9 if any(k in t.lower() for k in ("ignore","bypass","admin","password","system prompt")) else 0.1 for t in texts]
+        # fallback probabilities aligned with expanded heuristic
+        keys = (
+            "ignore", "bypass", "admin", "password", "system prompt",
+            "execute", "run", "eval(", "system(", "subprocess", "curl ", "wget ", "rm -rf", "cat /etc/passwd",
+            "base64", "hex",
+            "ignorez", "négligez", "contournez", "montrez",
+            "忽略", "无视", "显示",
+            "ignora", "omite", "salta", "muestra",
+            "istruzioni", "mostra"
+        )
+        out: List[float] = []
+        for t in texts:
+            tl = t.lower()
+            prob = 0.1
+            if any(k in tl for k in keys):
+                prob = 0.95
+            out.append(prob)
+        return out
 
 
 def train_semantic_model(pairs: List[Tuple[str, str]]) -> SemanticModel:
@@ -39,9 +68,34 @@ def train_semantic_model(pairs: List[Tuple[str, str]]) -> SemanticModel:
         # return heuristic model
         class Heuristic:
             def predict(self, texts: List[str]):
-                return [1 if any(k in t.lower() for k in ("ignore","bypass","admin","password","system prompt")) else 0 for t in texts]
+                keys = (
+                    "ignore", "bypass", "admin", "password", "system prompt",
+                    "execute", "run", "eval(", "system(", "subprocess", "curl ", "wget ", "rm -rf", "cat /etc/passwd",
+                    "base64", "hex",
+                    "ignorez", "négligez", "contournez", "montrez",
+                    "忽略", "无视", "显示",
+                    "ignora", "omite", "salta", "muestra",
+                    "istruzioni", "mostra"
+                )
+                return [1 if any(k in t.lower() for k in keys) else 0 for t in texts]
             def predict_proba(self, texts: List[str]):
-                return [[1-pp, pp] for pp in [0.9 if any(k in t.lower() for k in ("ignore","bypass","admin","password","system prompt")) else 0.1 for t in texts]]
+                keys = (
+                    "ignore", "bypass", "admin", "password", "system prompt",
+                    "execute", "run", "eval(", "system(", "subprocess", "curl ", "wget ", "rm -rf", "cat /etc/passwd",
+                    "base64", "hex",
+                    "ignorez", "négligez", "contournez", "montrez",
+                    "忽略", "无视", "显示",
+                    "ignora", "omite", "salta", "muestra",
+                    "istruzioni", "mostra"
+                )
+                probs = []
+                for t in texts:
+                    tl = t.lower()
+                    prob = 0.1
+                    if any(k in tl for k in keys):
+                        prob = 0.95
+                    probs.append([1-prob, prob])
+                return probs
         return SemanticModel(Heuristic())
     pipe = Pipeline([
         ("tfidf", TfidfVectorizer(ngram_range=(1,2), max_features=50000, min_df=2)),
