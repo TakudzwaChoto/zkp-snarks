@@ -2,6 +2,7 @@
 
 ### Latest Results (Visualizations)
 - 4k (official evaluator): `results_official_4k_figs/` (PNG + CSV)
+- 6k data (rules-only profile): `results_official_6k_figs_sanitized/` (PNG + CSV)
 - 6k Kaggle (official evaluator): `results_official_6k_figs_semantic_lr/` (PNG + CSV)
 - 50k (official evaluator): `results_official_50k_figs/` (PNG + CSV)
 - Legacy/archived visualizations: see `results_4k_beautiful/`, `results_50k_beautiful_*`, `results_with_beautiful_visualizations/`
@@ -15,6 +16,8 @@ Key charts (per folder):
 
 ### Headline Metrics (Official Evaluator)
 - 4k (Ensemble): precision ≈ 1.000, recall ≈ 0.945, F1 ≈ 0.972, accuracy ≈ 0.973
+- 6k data (rules-only enhanced Ensemble): precision ≈ 0.999, recall ≈ 0.752, F1 ≈ 0.858, accuracy ≈ 0.876
+  - CSV: `results_official_6k_figs_sanitized/metrics_<timestamp>.csv`
 - 6k Kaggle (Ensemble, TF‑IDF + LR enabled): precision ≈ 0.998, recall = 1.000, F1 ≈ 0.999, accuracy ≈ 0.999
   - CSV: `results_official_6k_figs_semantic_lr/metrics_<timestamp>.csv`
 - 50k (Ensemble): precision ≈ 0.960, recall = 1.000, F1 ≈ 0.980, accuracy ≈ 0.979
@@ -93,83 +96,6 @@ sequenceDiagram
   end
 ```
 
-## Layers (What the solution consists of)
-Each layer is independent and composable. Blocking occurs on first failing layer (strict mode can enforce stricter logic).
-
-- We propose 7 mitigation layers (+1 audit layer) working in sequence:
-  1) Normalizer (versioned)
-     - Lowercase, whitespace collapse, leetspeak de‑obfuscation, homoglyph folding
-     - Versioned via `NORMALIZER_VERSION`; binds ZK proofs and logs to a canonical text
-  2) Sanitizer / DFA Policy
-     - Deterministic pattern checks for high‑risk phrases (e.g., “ignore previous instructions”, “admin password”)
-     - Immediately blocks obvious/direct prompt injections
-  3) ZKP Safety Gate (score + commitment + verify)
-     - Proves safety score ≥ threshold against the normalized prompt without revealing the prompt
-     - Verification happens before any LLM call; proof id and score are referenced in audits
-  4) SNARK Policy Proof (optional)
-     - Independent policy‑compliance proof (simulated by default; can be replaced by real circuits)
-     - Adds a cryptographic second opinion; configurable policy id and threshold
-  5) Guardrails (prompt hardening)
-     - Safe‑prefix and policy reminders are prepended to allowed prompts to reduce jailbreak risk during generation
-  6) LLM Self‑Check (advisory; strict mode can block)
-     - Lightweight semantic check to catch indirect/roleplay attacks; used as an advisory signal by default
-  7) Output Filter (post‑generation)
-     - Blocks secrets/sensitive structures in responses (second containment boundary)
-  + Audit Layer (privacy‑preserving logging)
-     - AES‑GCM encryption, hash‑chain, and signatures; logs include proof ids, versions, and timings, not raw prompts
-
-### Transitions and Inter‑Layer Relationships (how it works together)
-- Normalizer → Sanitizer: all subsequent checks operate on a canonical form; sanitizer quickly rejects obvious threats.
-- Sanitizer → ZKP Gate: if not blocked, a ZKP proves the safety score on the normalized prompt; failure blocks the request.
-- ZKP → SNARK (optional): when enabled, a second cryptographic check proves policy compliance; both must pass to proceed.
-- ZKP/SNARK → Guardrails: approved prompts are hardened with safety instructions to reduce in‑generation jailbreaks.
-- Guardrails → LLM Self‑Check: an advisory semantic pass flags risky content; in strict mode this can block.
-- LLM Self‑Check → Output Filter: final protective boundary removes sensitive outputs before user delivery.
-- All stages → Audit: every decision is recorded with proof ids, normalizer version, timing, and signatures; no raw prompts are logged.
-
-## Cryptographic Guarantees (concise)
-- ZKP: Integrity of safety scoring and binding to normalized prompt via commitments
-- SNARK (optional): Policy compliance without exposing the prompt
-- Logs: Confidentiality (AES‑GCM), tamper‑evidence (hash chain), non‑repudiation (signature)
-
-## Mathematical Foundations (formal sketches)
-
-### Normalization and Commitment
-- Let raw prompt be \( x \in \Sigma^* \). Define a deterministic normalizer \( n_v: \Sigma^* \to \Sigma^* \) parameterized by version \( v \) that lowercases, collapses whitespace, de‑leetspeaks, and folds homoglyphs.
-- Sample nonce \( r \leftarrow_R \{0,1\}^{\lambda} \). Compute commitment
-\[ c \;=\; H\big(n_v(x)\;\Vert\; r\big) \]
-for collision‑resistant hash \( H: \{0,1\}^* \to \{0,1\}^{\kappa} \). The pair \((c,v)\) binds all downstream proofs/logs to \(n_v(x)\).
-
-### Safety Score and Zero‑Knowledge Proof
-- Let \( R \) be the ordered list of safety rules; define a measurable safety score \( s: \Sigma^* \times \mathcal R \to [0,1] \).
-- The prover proves in zero knowledge that the statement holds without revealing \( n_v(x) \):
-\[ \exists\; r,\; w:\; c = H(n_v(x)\Vert r)\;\wedge\; s(n_v(x),R) \ge \tau \]
-where \( w \) is the witness for the safety computation and \( \tau \in (0,1] \) is the threshold. Soundness ensures unsafe prompts (\(s<\tau\)) fail; zero‑knowledge ensures \(n_v(x)\) is hidden.
-
-### DFA / Policy Predicate
-- Sanitizer implements a DFA‑style predicate \( \mathsf{DFA}(n_v(x)) \in \{0,1\} \) detecting high‑risk phrases. A sufficient (but not necessary) blocking condition is
-\[ \mathsf{Block}_{\text{pre}}(x) \;=\; (\mathsf{DFA}(n_v(x))=1)\;\lor\; (s(n_v(x),R) < \tau) \]
-
-### Optional SNARK Policy Compliance
-- With real circuits, define a relation \( \mathcal{R}_{\text{policy}} \) that enforces policy \(P\). The prover produces a succinct non‑interactive argument \( \pi \) such that
-\[ (\pi, y) \in \mathsf{SNARK}\iff \exists\, w:\; \mathcal{R}_{\text{policy}}(n_v(x), w, y)=1 \]
-where public signals \( y \) include \(c,\, \tau,\, \text{policy\_id}\). Verifier accepts iff \(\mathsf{Verify}(\pi,y)=\text{true}\).
-
-### Guardrails and Output Filtering
-- Guardrails prepend a fixed safety prefix \( g \) to produce \( g\Vert n_v(x) \), reducing jailbreak success probability during generation.
-- Output filter enforces a post‑predicate \( \mathsf{OF}(y)\in\{0,1\} \) on model output \( y \), blocking sensitive tokens/structures.
-
-### Decision Logic (Allow/Block)
-- Let \(T=\mathsf{DFA}(n_v(x))\), \(Z=\mathsf{VerifyZK}(c,\tau)=1\) iff the ZK proof verifies, \(K=\mathsf{VerifySNARK}(\pi,y)\) (or \(\top\) if disabled), and \(O=\mathsf{OF}(y)\).
-- Pre‑generation allow condition:
-\[ \mathsf{Allow}_{\text{pre}} \;=\; (\neg T) \wedge Z \wedge K \]
-- End‑to‑end allow condition (after generation):
-\[ \mathsf{Allow}_{\text{e2e}} \;=\; \mathsf{Allow}_{\text{pre}} \wedge O \]
-
-### Privacy‑Preserving Audit (Integrity)
-- For interaction \(i\) with proof commitments \(c^i_p\) (prompt) and \(c^i_r\) (response), define the hash‑chain
-\[ h_i \;=\; H\big(c^i_p\Vert c^i_r\Vert h_{i-1}\big),\quad h_0=\mathbf{0}^{\kappa} \]
-- Sign each link with Ed25519: \( \sigma_i = \mathsf{Sign}_{sk}(h_i) \). Verifiers check \( \mathsf{Verify}_{pk}(h_i, \sigma_i) \) and that the chain recomputes, ensuring tamper‑evidence without revealing \(x\).
 ## Datasets
 - Included in this repo:
   - `data/4kdata.csv` and `data/4kdata.json` — balanced, small dataset
@@ -190,13 +116,13 @@ python data/generate_dataset.py -b 25000 -a 25000 -f json -o data/50kdata.json
 python data/generate_dataset.py -b 100000 -a 100000 -f csv -o data/200kdata.csv
 ```
 
-### Kaggle integration (optional)
+### Kaggle dataset (6k)
+- This repository contains a 6k Kaggle‑derived JSONL/CSV in root (Prompt_INJECTION_And_Benign_DATASET_COMBINED_6K_*).
+- If you need to regenerate or convert:
 ```bash
-# Requires kaggle CLI authenticated via KAGGLE_USERNAME/KAGGLE_KEY
-tools/fetch_kaggle_dataset.sh <user/dataset-slug> kaggle_dataset.jsonl data/kaggle_dataset.csv
-
-# Or convert an already-downloaded JSONL to CSV (prompt,label):
-python tools/convert_jsonl_to_csv.py -i data/kaggle_dataset.jsonl -o data/kaggle_dataset.csv --lowercase-label
+# Convert JSONL → CSV (prompt,label) for the evaluator
+python tools/convert_jsonl_to_csv.py -i Prompt_INJECTION_And_Benign_DATASET_COMBINED_6K_*.jsonl \
+  -o Prompt_INJECTION_And_Benign_DATASET_COMBINED_6K_converted.csv --lowercase-label
 ```
 
 ## Running the System (functional overview)
@@ -236,56 +162,6 @@ Inference and training context:
 - Optional semantic classifier (TF-IDF + LR) can be trained on project datasets for additional detection signals.
 - Transformer-based classifier (e.g., distilroberta) can be enabled via env (`ENABLE_TRANSFORMER=true`) for semantic coverage; used strictly as an additional detector, not as the generative model.
 
-Security posture for LLM connectivity:
-- Never send raw prompts to third-party telemetry.
-- Normalize and inspect prompts locally; ZKP/SNARK decisions run locally (SNARK prover can be local or remote per env).
-- All logs are encrypted at rest (AES-GCM), chained, and signed to detect tampering.
-
-## Deployment workflows
-```mermaid
-flowchart LR
-  subgraph Local Dev
-    L1[python app.py] --> UI1[http://localhost:5000]
-    L2[python zk/snark_prover.py] --> P1[http://127.0.0.1:5001]
-  end
-  subgraph Docker Compose
-    C1[docker compose up --build]
-    C1 --> APP1[llm-security: gunicorn]
-    C1 --> PROV1[snark-prover]
-  end
-  subgraph Production
-    P2[gunicorn non‑root]
-    P3[Ollama or API]
-    P4[Reverse proxy / SSL]
-    P5[Secret store / env]
-  end
-```
-
-Quick starts:
-```bash
-# Local with Ollama
-export OLLAMA_BASE_URL=http://localhost:11434/v1
-export OLLAMA_MODEL=gemma:2b
-python app.py
-
-# With SNARK (simulated)
-export SNARK_ENABLED=true
-export SNARK_PROVER_URL=http://127.0.0.1:5001/prove
-export SNARK_VERIFY_URL=http://127.0.0.1:5001/verify
-python zk/snark_prover.py
-
-# Docker Compose
-docker compose up --build
-```
-
-### Optional: SNARK service (simulated or snarkjs if configured)
-```bash
-export SNARK_ENABLED=true
-export SNARK_PROVER_URL=http://127.0.0.1:5001/prove
-export SNARK_VERIFY_URL=http://127.0.0.1:5001/verify
-python zk/snark_prover.py
-```
-
 ## Evaluation (clear metrics and guaranteed plots)
 
 ### What we measure
@@ -302,6 +178,10 @@ python zk/snark_prover.py
 FAST_EVAL=true SKIP_PLOTS=false EVAL_WORKERS=1 \
   python run_evaluation.py -d data/4kdata.json -o results_official_4k_figs
 
+# 6k data (rules-only profile)
+FAST_EVAL=true SKIP_PLOTS=false EVAL_WORKERS=1 ENABLE_SEMANTIC=false \
+  python run_evaluation.py -d Prompt_INJECTION_And_Benign_DATASET_COMBINED_6K_*.csv -o results_official_6k_figs_sanitized
+
 # 6k Kaggle (official evaluator) — enable semantic classifier (TF‑IDF+LR)
 FAST_EVAL=true SKIP_PLOTS=false EVAL_WORKERS=1 ENABLE_SEMANTIC=true SEMANTIC_THRESHOLD=0.30 \
   python run_evaluation.py -d Prompt_INJECTION_And_Benign_DATASET_COMBINED_6K_*.csv -o results_official_6k_figs_semantic_lr
@@ -315,11 +195,9 @@ Outputs per run directory:
   `method_distribution_pie.png`, `performance_trends_line.png`
 - `metrics_<YYYYMMDD_HHMMSS>.csv` — numeric metrics per method
 
-Reproducibility considerations:
-- We fix the matplotlib backend to Agg to support headless servers.
-- The evaluation runner gracefully degrades when pandas/seaborn are not installed, using pure-matplotlib paths.
-- Datasets included (4k/50k) are versioned in repo; 200k must be generated locally to avoid repository bloat.
-- Seeded data generation allows controlled variance (via `--seed`) for robust experimentation.
+### SNARK behavior
+- When `SNARK_ENABLED=true`, the system attempts real SNARK proving/verification first.
+- If the real proving path fails at runtime, the evaluator gracefully falls back to the default ZKP‑only path (no additional blocking), ensuring evaluations complete consistently.
 
 ### Evaluation workflow (datasets → metrics)
 ```mermaid
@@ -599,3 +477,4 @@ FAST_EVAL=true SKIP_PLOTS=false python run_evaluation.py -d data/4kdata.csv -o r
 for t in 0.5 0.6 0.7 0.8; do \
   ZKP_THRESHOLD=$t FAST_EVAL=true SKIP_PLOTS=false \
     python run_evaluation.py -d data/4kdata.csv -o results_thr_${t//./}; \
+```
