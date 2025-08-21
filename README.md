@@ -2,7 +2,7 @@
 
 ### Latest Results (Visualizations)
 - 4k (official evaluator): `results_official_4k_figs/` (PNG + CSV)
-- 6k Kaggle+external (official evaluator): `results_official_6k_figs_semantic_lr/` (PNG + CSV)
+- 6k Kaggle (official evaluator): `results_official_6k_figs_semantic_lr/` (PNG + CSV)
 - 50k (official evaluator): `results_official_50k_figs/` (PNG + CSV)
 - Legacy/archived visualizations: see `results_4k_beautiful/`, `results_50k_beautiful_*`, `results_with_beautiful_visualizations/`
 
@@ -15,7 +15,7 @@ Key charts (per folder):
 
 ### Headline Metrics (Official Evaluator)
 - 4k (Ensemble): precision ≈ 1.000, recall ≈ 0.945, F1 ≈ 0.972, accuracy ≈ 0.973
-- 6k Kaggle+external (Ensemble, TF‑IDF + LR enabled): precision ≈ 0.998, recall = 1.000, F1 ≈ 0.999, accuracy ≈ 0.999
+- 6k Kaggle (Ensemble, TF‑IDF + LR enabled): precision ≈ 0.998, recall = 1.000, F1 ≈ 0.999, accuracy ≈ 0.999
   - CSV: `results_official_6k_figs_semantic_lr/metrics_<timestamp>.csv`
 - 50k (Ensemble): precision ≈ 0.960, recall = 1.000, F1 ≈ 0.980, accuracy ≈ 0.979
   - CSV: `results_official_50k_figs/metrics_<timestamp>.csv`
@@ -302,7 +302,7 @@ python zk/snark_prover.py
 FAST_EVAL=true SKIP_PLOTS=false EVAL_WORKERS=1 \
   python run_evaluation.py -d data/4kdata.json -o results_official_4k_figs
 
-# 6k Kaggle+external (official evaluator) — enable semantic classifier (TF‑IDF+LR)
+# 6k Kaggle (official evaluator) — enable semantic classifier (TF‑IDF+LR)
 FAST_EVAL=true SKIP_PLOTS=false EVAL_WORKERS=1 ENABLE_SEMANTIC=true SEMANTIC_THRESHOLD=0.30 \
   python run_evaluation.py -d Prompt_INJECTION_And_Benign_DATASET_COMBINED_6K_*.csv -o results_official_6k_figs_semantic_lr
 
@@ -358,7 +358,7 @@ flowchart TD
     B --> C[Sanitization Engine]
     B --> D[ZKP Safety Verification]
     B --> E[Policy Compliance Proof]
-    C --> F{Authorization Decision}
+    C --> F{Authorization Decision]
     D --> F
     E --> F
     F -->|Reject| G[Threat Audit Logging]
@@ -502,7 +502,7 @@ flowchart LR
 - Policy incompleteness: DFA patterns and safety rules need continuous updates; domain‑specific policies should be added for best coverage.
 - Threshold sensitivity: ZKP safety threshold trades precision/recall; we provide ablation scripts to choose values per deployment.
 - Performance budgets: enabling all layers (e.g., transformer detector) increases latency; tune FAST_EVAL and layer toggles for your SLOs.
-- SNARK availability: if `SNARK_ENABLED=true` and real proving fails at runtime, the prover returns `valid=false` and the app will block; to force simulated proving set no `SNARKJS_PATH` or remove artifacts.
+- SNARK availability: when `SNARK_ENABLED=true`, the system attempts real proving/verification first; if that path fails at runtime, it gracefully falls back to the default ZKP‑only path (no additional blocking).
 
 ## Environment Variables (selected)
 - Core
@@ -599,32 +599,3 @@ FAST_EVAL=true SKIP_PLOTS=false python run_evaluation.py -d data/4kdata.csv -o r
 for t in 0.5 0.6 0.7 0.8; do \
   ZKP_THRESHOLD=$t FAST_EVAL=true SKIP_PLOTS=false \
     python run_evaluation.py -d data/4kdata.csv -o results_thr_${t//./}; \
-done
-
-# 2) Disable transformer (default is disabled); enable to compare
-ENABLE_TRANSFORMER=true FAST_EVAL=true SKIP_PLOTS=false \
-  python run_evaluation.py -d data/4kdata.csv -o results_tf
-
-# 3) Strict mode (UI path): toggles block behavior; for batch eval keep default
-```
-Collect metric CSVs from each `results_*` directory and compare accuracy/precision/recall/F1 and latency.
-
-### F. Integrity and Audit Validation
-```bash
-# Run app and interact; then verify logs
-python app.py
-# In UI, submit safe and adversarial prompts; note audit card proof id and status
-# From another terminal (admin role):
-python -c "import requests; print(requests.get('http://127.0.0.1:5000/verify').text)"
-```
-This validates the tamper‑evident log chain: integrity should report `VALID` unless files were modified.
-
-
-### Kaggle + External dataset (6k)
-- This repository already contains a combined 6k JSONL/CSV in root (Prompt_INJECTION_And_Benign_DATASET_COMBINED_6K_*).
-- If you need to regenerate or convert:
-```bash
-# Convert JSONL → CSV (prompt,label) for the evaluator
-python tools/convert_jsonl_to_csv.py -i Prompt_INJECTION_And_Benign_DATASET_COMBINED_6K_*.jsonl \
-  -o Prompt_INJECTION_And_Benign_DATASET_COMBINED_6K_converted.csv --lowercase-label
-```
