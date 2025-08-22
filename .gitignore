@@ -59,3 +59,5 @@ tk.pub
 !results_200k_matplots/*.csv
 !results_200k_matplots/*.png
 !results_200k_matplots/*.svg
+!results_scalability/*.csv
+!results_scalability/*.png
