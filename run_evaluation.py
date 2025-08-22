@@ -16,10 +16,14 @@ except ImportError:
 try:
     import matplotlib.pyplot as plt
     import matplotlib.patches as mpatches
-    import seaborn as sns
     from matplotlib.colors import LinearSegmentedColormap
 except ImportError:
     plt = None
+    mpatches = None
+    LinearSegmentedColormap = None
+try:
+    import seaborn as sns
+except ImportError:
     sns = None
 
 # Import the evaluation pipeline
@@ -498,12 +502,34 @@ def main():
 
     # Generate plots
     print("\n📊 Generating visualizations...")
-    PlotGenerator.generate_all_plots(results, args.output)
+    try:
+        PlotGenerator.generate_all_plots(results, args.output)
+    except Exception as e:
+        print(f"⚠️ Skipping plot generation: {e}")
 
     # Save results
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    pd.DataFrame(results['metrics']).to_csv(
-        os.path.join(args.output, f'metrics_{timestamp}.csv'))
+    metrics_csv_path = os.path.join(args.output, f'metrics_{timestamp}.csv')
+    if pd is not None:
+        pd.DataFrame(results['metrics']).to_csv(metrics_csv_path)
+    else:
+        # Fallback CSV writer without pandas
+        metrics = results['metrics']
+        methods = list(metrics.keys())
+        # Collect union of metric names across methods
+        metric_names = set()
+        for method in methods:
+            metric_names.update(metrics[method].keys())
+        # Write a wide CSV: one row per metric, columns per method
+        with open(metrics_csv_path, 'w', encoding='utf-8') as f:
+            header = ['metric'] + methods
+            f.write(','.join(header) + '\n')
+            for metric_name in sorted(metric_names):
+                row = [metric_name]
+                for method in methods:
+                    value = metrics[method].get(metric_name, '')
+                    row.append(str(value))
+                f.write(','.join(row) + '\n')
 
     print(f"\n✅ Done! Results saved to {args.output}")
 

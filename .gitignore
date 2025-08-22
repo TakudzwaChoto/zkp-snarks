@@ -53,3 +53,9 @@ tk.pub
 !results_official_50k/*.png
 !results_official_50k_figs/*.csv
 !results_official_50k_figs/*.png
+!results_200k/*.csv
+!results_200k/*.png
+!results_200k/*.svg
+!results_200k_matplots/*.csv
+!results_200k_matplots/*.png
+!results_200k_matplots/*.svg
