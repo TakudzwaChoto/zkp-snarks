@@ -16,10 +16,14 @@ except ImportError:
 try:
     import matplotlib.pyplot as plt
     import matplotlib.patches as mpatches
-    import seaborn as sns
     from matplotlib.colors import LinearSegmentedColormap
 except ImportError:
     plt = None
+    mpatches = None
+    LinearSegmentedColormap = None
+try:
+    import seaborn as sns
+except ImportError:
     sns = None
 
 # Import the evaluation pipeline
