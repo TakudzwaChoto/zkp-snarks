@@ -1,0 +1,52 @@
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{float}
+\title{Kaggle Prompt Injection Dataset Evaluation}
+\author{LLM Defense System}
+\date{\today}
+\begin{document}
+\maketitle
+
+\section{Dataset Overview}
+Comprehensive evaluation of the Kaggle Prompt Injection dataset containing 6498 entries.
+
+\section{Results Summary}
+
+\begin{table}[h!]
+\centering
+\caption{Kaggle Dataset Anti-Collusion Evaluation Results}
+\label{tab:kaggle_results}
+\begin{tabular}{|l|c|}
+\hline
+\textbf{Metric} & \textbf{Value} \\
+\hline
+Detection Rate & 0.916 \\
+False Positive Rate & 0.000 \\
+Tamper Resistance & 1.000 \\
+Latency (ms) & 15.12 \\
+Throughput (RPM) & 6618 \\
+Total Entries & 6498 \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[h!]
+\centering
+\caption{Attack Type Distribution in Kaggle Dataset}
+\label{tab:attack_distribution}
+\begin{tabular}{|l|c|}
+\hline
+\textbf{Attack Type} & \textbf{Count} \\
+\hline
+Jailbreaking & 17 \\
+None & 3249 \\
+Role Playing & 8 \\
+Obfuscation & 61 \\
+Data Leakage & 18 \\
+Code Execution & 146 \\
+Expanded 6K & 2999 \\
+\hline
+\end{tabular}
+\end{table}
+\end{document}

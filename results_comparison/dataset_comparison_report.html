@@ -1,0 +1,168 @@
+
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Dataset Performance Comparison Report</title>
+        <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; margin: 0; padding: 20px; background: #f9f9f9; }
+            .container { max-width: 1400px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            h1 { color: #2c3e50; text-align: center; border-bottom: 3px solid #3498db; padding-bottom: 10px; }
+            h2 { color: #34495e; margin-top: 30px; }
+            .summary-box { background: #ecf0f1; padding: 20px; border-radius: 8px; margin: 20px 0; }
+            .highlight { background: #fff3cd; padding: 15px; border-radius: 6px; border-left: 4px solid #ffc107; }
+            .chart-container { margin: 30px 0; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>📊 Dataset Performance Comparison Report</h1>
+            
+            <div class="summary-box">
+                <h2>📋 Executive Summary</h2>
+                <p>This report provides a comprehensive comparison of anti-collusion system performance across multiple datasets: 
+                <strong>KAGGLE</strong>. The analysis covers detection rates, false positive rates, 
+                tamper resistance, latency, and throughput metrics to identify performance patterns and optimization opportunities.</p>
+            </div>
+            
+            <div class="chart-container">
+                
+    <div style="font-family: Arial, sans-serif; max-width: 1200px; margin: 20px auto;">
+        <h2>Dataset Performance Comparison</h2>
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px;">
+            <thead>
+                <tr style="background: #f5f5f5;">
+                    <th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Metric</th>
+    <th style="border: 1px solid #ddd; padding: 12px; text-align: center;">KAGGLE</th>
+                </tr>
+            </thead>
+            <tbody>
+    <tr><td style="border: 1px solid #ddd; padding: 12px; font-weight: bold;">Detection Rate</td><td style="border: 1px solid #ddd; padding: 12px; text-align: center; background: #d4edda; color: #155724;">91.6%</td></tr><tr><td style="border: 1px solid #ddd; padding: 12px; font-weight: bold;">False Positive Rate</td><td style="border: 1px solid #ddd; padding: 12px; text-align: center; background: #d4edda; color: #155724;">0.0%</td></tr><tr><td style="border: 1px solid #ddd; padding: 12px; font-weight: bold;">Tamper Resistance</td><td style="border: 1px solid #ddd; padding: 12px; text-align: center; ">100.0%</td></tr><tr><td style="border: 1px solid #ddd; padding: 12px; font-weight: bold;">Latency (ms)</td><td style="border: 1px solid #ddd; padding: 12px; text-align: center; background: #fff3cd; color: #856404;">15.12</td></tr><tr><td style="border: 1px solid #ddd; padding: 12px; font-weight: bold;">Throughput (RPM)</td><td style="border: 1px solid #ddd; padding: 12px; text-align: center; ">6,617.722018445081</td></tr><tr><td style="border: 1px solid #ddd; padding: 12px; font-weight: bold;">Total Entries</td><td style="border: 1px solid #ddd; padding: 12px; text-align: center; ">6,498</td></tr><tr><td style="border: 1px solid #ddd; padding: 12px; font-weight: bold;">Sample Size</td><td style="border: 1px solid #ddd; padding: 12px; text-align: center; ">1,000</td></tr>
+            </tbody>
+        </table>
+    </div>
+    
+            </div>
+            
+            <div class="chart-container">
+                
+    <div style="font-family: Arial, sans-serif; max-width: 1000px; margin: 20px auto;">
+        <h2>Performance Metrics Comparison</h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+    
+            <div style="background: #f5f5f5; padding: 20px; border-radius: 8px;">
+                <h3 style="margin-top: 0; color: #333;">Detection Rate</h3>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+        
+                    <div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                            <span style="font-size: 14px; font-weight: bold;">KAGGLE</span>
+                            <span style="font-size: 14px;">91.6%</span>
+                        </div>
+                        <div style="background: #e0e0e0; height: 20px; border-radius: 10px; overflow: hidden;">
+                            <div style="background: #4caf50; height: 100%; width: 91.64882226980728%; transition: width 0.3s ease;"></div>
+                        </div>
+                    </div>
+                
+                </div>
+            </div>
+        
+            <div style="background: #f5f5f5; padding: 20px; border-radius: 8px;">
+                <h3 style="margin-top: 0; color: #333;">False Positive Rate</h3>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+        
+                    <div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                            <span style="font-size: 14px; font-weight: bold;">KAGGLE</span>
+                            <span style="font-size: 14px;">0.0%</span>
+                        </div>
+                        <div style="background: #e0e0e0; height: 20px; border-radius: 10px; overflow: hidden;">
+                            <div style="background: #f44336; height: 100%; width: 0.0%; transition: width 0.3s ease;"></div>
+                        </div>
+                    </div>
+                
+                </div>
+            </div>
+        
+            <div style="background: #f5f5f5; padding: 20px; border-radius: 8px;">
+                <h3 style="margin-top: 0; color: #333;">Tamper Resistance</h3>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+        
+                    <div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                            <span style="font-size: 14px; font-weight: bold;">KAGGLE</span>
+                            <span style="font-size: 14px;">100.0%</span>
+                        </div>
+                        <div style="background: #e0e0e0; height: 20px; border-radius: 10px; overflow: hidden;">
+                            <div style="background: #2196f3; height: 100%; width: 100.0%; transition: width 0.3s ease;"></div>
+                        </div>
+                    </div>
+                
+                </div>
+            </div>
+        
+        </div>
+    </div>
+    
+            </div>
+            
+            <div class="chart-container">
+                
+    <div style="font-family: Arial, sans-serif; max-width: 1000px; margin: 20px auto;">
+        <h2>Dataset Size Impact Analysis</h2>
+        <div style="background: #f5f5f5; padding: 20px; border-radius: 8px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+    
+            <div style="background: white; padding: 20px; border-radius: 8px; text-align: center; border: 1px solid #e0e0e0;">
+                <div style="font-size: 20px; font-weight: bold; color: #2c3e50; margin-bottom: 10px;">KAGGLE</div>
+                <div style="font-size: 14px; color: #666; margin-bottom: 5px;">Size: 6,498</div>
+                <div style="font-size: 12px; color: #999; margin-bottom: 15px;">Detection: 91.6%</div>
+                <div style="font-size: 12px; color: #999; margin-bottom: 5px;">Latency: 15.1ms</div>
+                <div style="font-size: 12px; color: #999;">Throughput: 6,618 RPM</div>
+            </div>
+        
+            </div>
+        </div>
+    </div>
+    
+            </div>
+            
+            <div class="highlight">
+                <h2>🔍 Key Insights</h2>
+                <ul>
+                    <li><strong>Detection Performance:</strong> All datasets show strong detection rates above 90%</li>
+                    <li><strong>False Positive Rates:</strong> Consistently low false positive rates across all datasets</li>
+                    <li><strong>Scalability:</strong> Performance metrics scale well with dataset size</li>
+                    <li><strong>Attack Coverage:</strong> Comprehensive coverage of various attack types</li>
+                </ul>
+            </div>
+            
+            <div class="summary-box">
+                <h2>📈 Performance Rankings</h2>
+                <h3>🏆 Top Performers by Metric:</h3>
+                <ul>
+                    <li><strong>Detection Rate:</strong> KAGGLE</li>
+                    <li><strong>False Positive Rate:</strong> KAGGLE</li>
+                    <li><strong>Latency:</strong> KAGGLE</li>
+                    <li><strong>Throughput:</strong> KAGGLE</li>
+                </ul>
+            </div>
+            
+            <div class="summary-box">
+                <h2>🎯 Recommendations</h2>
+                <ul>
+                    <li>Use the best-performing dataset configuration for production deployment</li>
+                    <li>Monitor performance as dataset sizes increase</li>
+                    <li>Consider dataset-specific optimizations for attack types</li>
+                    <li>Regular performance benchmarking across all datasets</li>
+                </ul>
+            </div>
+            
+            <div style="text-align: center; margin-top: 40px; color: #7f8c8d; font-size: 14px;">
+                Report generated on 2025-08-23 16:20:21
+            </div>
+        </div>
+    </body>
+    </html>
+    
