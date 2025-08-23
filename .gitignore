@@ -64,4 +64,6 @@ tk.pub
 !results_bars/*.png
 !results_anticollusion/*.csv
 !results_anticollusion/*.json
+!results_visualizations_complete/*.png
+!results_evaluation_complete/*.png
 !results_anticollusion/*.png
