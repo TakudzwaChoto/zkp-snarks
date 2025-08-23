@@ -1,0 +1,31 @@
+=== 6K Kaggle Dataset - Detailed Evaluation Report ===
+
+Evaluation Timestamp: 2025-08-23T18:41:35.332429
+Dataset Name: 6k
+Dataset Type: Kaggle
+Total Dataset Size: 6,499 entries
+Evaluation Sample Size: 1,000 entries
+
+=== Sample Composition ===
+Malicious Samples: 751 (75.1%)
+Benign Samples: 249 (24.9%)
+
+=== Performance Metrics ===
+Collusion Detection Rate: 100.0%
+False Positive Rate: 0.00%
+Tamper Resistance: 100.0%
+Latency: 14.86 ms
+Throughput: 6589 RPM
+
+=== Performance Analysis ===
+✓ Perfect detection rate achieved
+✓ Zero false positives achieved
+✓ Perfect tamper resistance achieved
+✓ System maintains consistent performance
+✓ Throughput optimized for production use
+
+=== Dataset Characteristics ===
+Format: JSONL
+Source: Kaggle
+Size Category: Small (< 10K)
+Evaluation Status: Complete

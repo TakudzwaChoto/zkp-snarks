@@ -1,0 +1,15 @@
+{
+  "dataset_name": "120k",
+  "dataset_size": 39220,
+  "dataset_type": "Kaggle",
+  "description": "120K Kaggle Dataset (MPDD)",
+  "total_entries": 1000,
+  "malicious_count": 506,
+  "benign_count": 494,
+  "collusion_detection_rate": 1.0,
+  "false_positive_rate": 0.0,
+  "tamper_resistance": 1.0,
+  "latency_ms": 15.175,
+  "throughput_rpm": 6626.75,
+  "evaluation_timestamp": "2025-08-23T18:41:38.783445"
+}

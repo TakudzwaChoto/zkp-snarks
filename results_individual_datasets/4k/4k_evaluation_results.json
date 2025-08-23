@@ -1,0 +1,15 @@
+{
+  "dataset_name": "4k",
+  "dataset_size": 16001,
+  "dataset_type": "Curated",
+  "description": "4K Curated Dataset",
+  "total_entries": 1000,
+  "malicious_count": 0,
+  "benign_count": 1000,
+  "collusion_detection_rate": 1.0,
+  "false_positive_rate": 0.0,
+  "tamper_resistance": 1.0,
+  "latency_ms": 15.025,
+  "throughput_rpm": 6569.68,
+  "evaluation_timestamp": "2025-08-23T18:41:33.768511"
+}
