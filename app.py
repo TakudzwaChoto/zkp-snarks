@@ -427,8 +427,20 @@ def index():
             "status": "allowed"
         }
         zkp_log_entry = zkp_security.create_privacy_preserving_log(interaction_data)
-        
-        log_id = logger.log_interaction(user_id, guarded_prompt, response)
+        # Determine risk level for logging (advisory in non-strict mode)
+        risk_level = 'low'
+        try:
+            llm_result_allowed = session.get('self_check_status') == 'allowed'
+        except Exception:
+            llm_result_allowed = True
+        if session.get('strict_mode', False):
+            # In strict mode, only allowed paths reach here; keep low
+            pass
+        else:
+            # Elevate risk if self-check hinted issues (ambiguous treated as low)
+            if session.get('self_check_status') == 'blocked':
+                risk_level = 'medium'
+        log_id = logger.log_interaction(user_id, guarded_prompt, response, risk_level=risk_level)
         session["chat_history"].append(user_msg)
         assistant_msg = {
             "role": "assistant",
