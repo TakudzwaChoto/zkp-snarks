@@ -66,4 +66,5 @@ tk.pub
 !results_anticollusion/*.json
 !results_visualizations_complete/*.png
 !results_evaluation_complete/*.png
+!results_individual_datasets/*/*.png
 !results_anticollusion/*.png
