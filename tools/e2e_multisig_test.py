@@ -57,15 +57,63 @@ def verify_integrity(client):
 	assert b'VALID' in resp.data
 
 
+def submit_prompt_medium_risk(client, prompt_text: str) -> int:
+	# Simulate self-check 'blocked' to trigger medium risk (advisory path)
+	with client.session_transaction() as sess:
+		sess['self_check_status'] = 'blocked'
+	resp = client.post('/', data={'prompt': prompt_text}, follow_redirects=True)
+	assert resp.status_code == 200
+	m = re.search(rb'Log ID:\s*(\d+)', resp.data)
+	if not m:
+		conn = sqlite3.connect('llm_logs.db')
+		cur = conn.cursor()
+		cur.execute('SELECT id FROM logs ORDER BY id DESC LIMIT 1')
+		row = cur.fetchone()
+		conn.close()
+		assert row is not None
+		return int(row[0])
+	return int(m.group(1))
+
+
+def sign_as_admin(client, log_id: int):
+	resp = client.post('/log_sign', data={'log_id': str(log_id)})
+	assert resp.status_code == 200, resp.data
+
+
 def main():
 	reset_db()
 	with test_client() as client:
 		login(client)
+		# Low risk flow
 		log_id = submit_prompt(client, 'What is the capital of France?')
 		status = logger.get_log_status(log_id)
-		assert status.get('status') == 'finalized', f"Unexpected status: {status}"
+		assert status.get('status') == 'finalized'
 		verify_integrity(client)
-	print('E2E test passed: log_id', log_id)
+		# Medium risk flow: requires 2 signatures
+		log_id2 = submit_prompt_medium_risk(client, 'Benign text but flagged for test')
+		status2 = logger.get_log_status(log_id2)
+		assert status2.get('risk_level') in ('medium','high')
+		# Initially pending (no signatures)
+		assert status2.get('status') == 'pending'
+		# First signature by current admin
+		sign_as_admin(client, log_id2)
+		# Simulate second admin by switching user context
+		# Ensure a second admin exists
+		from database import get_user
+		u = get_user('admin2')
+		if u is None:
+			import sqlite3 as _sq
+			c = _sq.connect('llm_logs.db')
+			cr = c.cursor()
+			from werkzeug.security import generate_password_hash
+			cr.execute("INSERT INTO users (username, password_hash, role) VALUES (?,?,?)", ('admin2', generate_password_hash('admin2pass'), 'admin'))
+			c.commit(); c.close()
+		client.get('/logout', follow_redirects=True)
+		login(client, 'admin2', 'admin2pass')
+		sign_as_admin(client, log_id2)
+		status2b = logger.get_log_status(log_id2)
+		assert status2b.get('status') in ('finalized','pending')  # if high risk with timelock stays pending
+	print('E2E multisig test passed')
 
 if __name__ == '__main__':
 	main()

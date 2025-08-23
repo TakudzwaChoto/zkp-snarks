@@ -437,9 +437,9 @@ def index():
             # In strict mode, only allowed paths reach here; keep low
             pass
         else:
-            # Elevate risk if self-check hinted issues (ambiguous treated as low)
-            if session.get('self_check_status') == 'blocked':
-                risk_level = 'medium'
+            # Escalate only on clear high-risk signals
+            if triggered or session.get('self_check_status') == 'blocked':
+                risk_level = 'high'
         log_id = logger.log_interaction(user_id, guarded_prompt, response, risk_level=risk_level)
         session["chat_history"].append(user_msg)
         assistant_msg = {
@@ -496,6 +496,27 @@ def logs():
     logs = cursor.fetchall()
     conn.close()
     return render_template("logs.html", logs=logs)
+
+@app.route("/log_status/<int:log_id>")
+@login_required(role="admin")
+def log_status(log_id: int):
+	status = logger.get_log_status(log_id)
+	if not status:
+		return {"error": "not found"}, 404
+	return status
+
+@app.route("/log_sign", methods=["POST"])
+@login_required(role="admin")
+def log_sign():
+	log_id = request.form.get("log_id", type=int)
+	if not log_id:
+		return {"error": "log_id required"}, 400
+	admin = session.get("user")
+	try:
+		sig = logger.sign_log_as_admin(log_id, admin)
+		return {"log_id": log_id, "admin": admin, "signature": sig}
+	except Exception as e:
+		return {"error": str(e)}, 400
 
 @app.route("/test_zkp")
 @login_required(role="admin")

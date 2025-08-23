@@ -203,4 +203,40 @@ class SecureLogger:
 					return False
 		conn.close()
 		return True
+
+	def _load_or_create_admin_keypair(self, admin_username: str) -> ed25519.Ed25519PrivateKey:
+		os.makedirs('keys', exist_ok=True)
+		priv_path = os.path.join('keys', f'admin_{admin_username}_ed25519_priv.bin')
+		pub_path = os.path.join('keys', f'admin_{admin_username}_ed25519_pub.bin')
+		if os.path.exists(priv_path):
+			with open(priv_path, 'rb') as f:
+				priv_bytes = f.read()
+			return ed25519.Ed25519PrivateKey.from_private_bytes(priv_bytes)
+		# create new
+		priv = ed25519.Ed25519PrivateKey.generate()
+		pub = priv.public_key()
+		priv_bytes = priv.private_bytes(encoding=serialization.Encoding.Raw, format=serialization.PrivateFormat.Raw, encryption_algorithm=serialization.NoEncryption())
+		pub_bytes = pub.public_bytes(encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw)
+		with open(priv_path, 'wb') as f:
+			f.write(priv_bytes)
+		with open(pub_path, 'wb') as f:
+			f.write(pub_bytes)
+		return priv
+
+	def sign_log_as_admin(self, log_id: int, admin_username: str) -> str:
+		"""Server-side helper: sign the log's current_hash with admin's ed25519 key and store signature.
+		Returns signature hex.
+		"""
+		conn = sqlite3.connect("llm_logs.db")
+		cursor = conn.cursor()
+		cursor.execute("SELECT current_hash FROM logs WHERE id = ?", (log_id,))
+		row = cursor.fetchone()
+		conn.close()
+		if not row:
+			raise ValueError("log not found")
+		current_hash = row[0]
+		priv = self._load_or_create_admin_keypair(admin_username)
+		sig_hex = priv.sign(current_hash.encode()).hex()
+		self.add_admin_signature(log_id, admin_username, sig_hex)
+		return sig_hex
     
