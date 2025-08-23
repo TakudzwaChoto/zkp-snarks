@@ -8,6 +8,15 @@
         th, td { border: 1px solid #ccc; padding: 8px; font-size: 0.95em; }
         th { background: #eee; }
         .hash, .sig { font-family: monospace; font-size: 0.9em; word-break: break-all; }
+        .action-buttons { display: flex; gap: 8px; }
+        .btn { padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9em; }
+        .btn-status { background: #007bff; color: white; }
+        .btn-sign { background: #28a745; color: white; }
+        .btn:hover { opacity: 0.8; }
+        .status-info { font-size: 0.85em; color: #666; margin-top: 4px; }
+        .signed { background: #d4edda; color: #155724; }
+        .pending { background: #fff3cd; color: #856404; }
+        .error { background: #f8d7da; color: #721c24; }
     </style>
 </head>
 <body>
@@ -18,6 +27,7 @@
             <th>ID</th><th>Timestamp</th><th>User</th>
             <th>Prompt (enc)</th><th>Response (enc)</th>
             <th>Prev Hash</th><th>Curr Hash</th><th>Signature</th>
+            <th>Actions</th>
         </tr>
         {% for log in logs %}
         <tr>
@@ -29,6 +39,13 @@
             <td class="hash" title="{{ log[5] }}"><span onclick="copyToClipboard('{{ log[5] }}')">{{ log[5][:16] }}...<span style='color:#888;'>(copy)</span></span></td>
             <td class="hash" title="{{ log[6] }}"><span onclick="copyToClipboard('{{ log[6] }}')">{{ log[6][:16] }}...<span style='color:#888;'>(copy)</span></span></td>
             <td class="sig" title="{{ log[7] }}"><span onclick="copyToClipboard('{{ log[7] }}')">{{ log[7][:16] }}...<span style='color:#888;'>(copy)</span></span></td>
+            <td>
+                <div class="action-buttons">
+                    <button class="btn btn-status" onclick="checkLogStatus({{ log[0] }})">Status</button>
+                    <button class="btn btn-sign" onclick="signLog({{ log[0] }})">Sign</button>
+                </div>
+                <div id="status-{{ log[0] }}" class="status-info"></div>
+            </td>
         </tr>
         {% endfor %}
     </table>
@@ -37,6 +54,7 @@
         navigator.clipboard.writeText(text);
         alert('Copied to clipboard!');
     }
+    
     function exportTableToCSV(filename) {
         var csv = [];
         var rows = document.querySelectorAll("#log-table tr");
@@ -54,6 +72,77 @@
         document.body.appendChild(downloadLink);
         downloadLink.click();
     }
+    
+    async function checkLogStatus(logId) {
+        try {
+            const response = await fetch(`/log_status/${logId}`);
+            const statusData = await response.json();
+            
+            const statusDiv = document.getElementById(`status-${logId}`);
+            if (response.ok) {
+                let statusClass = 'pending';
+                let statusText = 'Pending';
+                
+                if (statusData.status === 'finalized') {
+                    statusClass = 'signed';
+                    statusText = 'Finalized';
+                } else if (statusData.signatures && statusData.signatures.length > 0) {
+                    statusClass = 'signed';
+                    statusText = `Signed by ${statusData.signatures.map(s => s.admin_username).join(', ')}`;
+                }
+                
+                statusDiv.className = `status-info ${statusClass}`;
+                statusDiv.innerHTML = `
+                    <strong>Status:</strong> ${statusText}<br>
+                    <strong>Signatures:</strong> ${statusData.signatures ? statusData.signatures.length : 0}<br>
+                    <strong>Required:</strong> 2
+                `;
+            } else {
+                statusDiv.className = 'status-info error';
+                statusDiv.textContent = `Error: ${statusData.error || 'Unknown error'}`;
+            }
+        } catch (error) {
+            const statusDiv = document.getElementById(`status-${logId}`);
+            statusDiv.className = 'status-info error';
+            statusDiv.textContent = `Error: ${error.message}`;
+        }
+    }
+    
+    async function signLog(logId) {
+        try {
+            const formData = new FormData();
+            formData.append('log_id', logId);
+            
+            const response = await fetch('/log_sign', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.json();
+            if (response.ok) {
+                alert(`Log ${logId} signed successfully by ${result.admin}`);
+                // Refresh status
+                checkLogStatus(logId);
+            } else {
+                alert(`Error signing log: ${result.error}`);
+            }
+        } catch (error) {
+            alert(`Error signing log: ${error.message}`);
+        }
+    }
+    
+    // Auto-check status for all logs on page load
+    window.addEventListener('load', function() {
+        const logRows = document.querySelectorAll('#log-table tr');
+        logRows.forEach((row, index) => {
+            if (index > 0) { // Skip header row
+                const logId = row.cells[0].textContent;
+                if (logId) {
+                    setTimeout(() => checkLogStatus(parseInt(logId)), index * 100); // Stagger requests
+                }
+            }
+        });
+    });
     </script>
     <p><a href="/">Back to Chat</a></p>
 </body>
