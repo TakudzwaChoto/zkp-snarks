@@ -1,6 +1,3 @@
-metric,value
-collusion_detection_rate,0.28833333333333333
-false_positive_rate,0.0
-latency_ms,7.02628215154012
-tamper_resistance,1.0
-throughput_rpm,14577.80654335199
+version https://git-lfs.github.com/spec/v1
+oid sha256:8e0e5df5ae9b1cda3185d69924cd5b627a9d07071fe4faf08528a9134fbd1726
+size 171
