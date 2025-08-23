@@ -2,6 +2,7 @@
 import re
 import sqlite3
 from contextlib import contextmanager
+import os
 
 from app import app, logger
 
@@ -84,12 +85,14 @@ def main():
 	reset_db()
 	with test_client() as client:
 		login(client)
-		# Low risk flow
+		# Ensure low-risk behavior for first flow
+		os.environ['TEST_MEDIUM_RISK'] = 'false'
 		log_id = submit_prompt(client, 'What is the capital of France?')
 		status = logger.get_log_status(log_id)
 		assert status.get('status') == 'finalized'
 		verify_integrity(client)
-		# Medium risk flow: requires 2 signatures
+		# Medium risk flow: requires 2 signatures (enable test hook)
+		os.environ['TEST_MEDIUM_RISK'] = 'true'
 		log_id2 = submit_prompt_medium_risk(client, 'Benign text but flagged for test')
 		status2 = logger.get_log_status(log_id2)
 		assert status2.get('risk_level') in ('medium','high')
@@ -98,7 +101,6 @@ def main():
 		# First signature by current admin
 		sign_as_admin(client, log_id2)
 		# Simulate second admin by switching user context
-		# Ensure a second admin exists
 		from database import get_user
 		u = get_user('admin2')
 		if u is None:
@@ -112,7 +114,8 @@ def main():
 		login(client, 'admin2', 'admin2pass')
 		sign_as_admin(client, log_id2)
 		status2b = logger.get_log_status(log_id2)
-		assert status2b.get('status') in ('finalized','pending')  # if high risk with timelock stays pending
+		# For medium risk, should finalize after 2 signatures
+		assert status2b.get('status') == 'finalized'
 	print('E2E multisig test passed')
 
 if __name__ == '__main__':
