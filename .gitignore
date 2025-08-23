@@ -62,3 +62,6 @@ tk.pub
 !results_scalability/*.csv
 !results_scalability/*.png
 !results_bars/*.png
+!results_anticollusion/*.csv
+!results_anticollusion/*.json
+!results_anticollusion/*.png

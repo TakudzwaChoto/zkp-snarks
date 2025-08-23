@@ -30,15 +30,30 @@ OUTDIR = 'results_anticollusion'
 def load_6k() -> List[Tuple[str, str]]:
 	for p in DATASET_PATHS:
 		if os.path.exists(p):
-			rows = []
+			rows: List[Tuple[str,str]] = []
 			with open(p, 'r', encoding='utf-8') as f:
-				for line in f:
+				data = f.read().strip()
+				# Try JSON array
+				try:
+					obj = json.loads(data)
+					if isinstance(obj, list):
+						for o in obj:
+							rows.append((o.get('prompt',''), str(o.get('label','')).lower()))
+						return rows
+				except Exception:
+					pass
+				# Try JSONL or newline-separated JSON objects
+				for line in data.splitlines():
 					line = line.strip()
 					if not line:
 						continue
-					obj = json.loads(line)
-					rows.append((obj.get('prompt',''), str(obj.get('label','')).lower()))
-			return rows
+					try:
+						obj = json.loads(line)
+						rows.append((obj.get('prompt',''), str(obj.get('label','')).lower()))
+					except Exception:
+						continue
+				if rows:
+					return rows
 	return []
 
 
