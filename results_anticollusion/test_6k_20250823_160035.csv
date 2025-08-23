@@ -1,0 +1,6 @@
+metric,value
+collusion_detection_rate,1.0
+false_positive_rate,0.0
+latency_ms,10.091543197631836
+throughput_rpm,55765.06094845141
+sample_size,100

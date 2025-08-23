@@ -1,0 +1,3 @@
+dataset_size,collusion_detection_rate,false_positive_rate,latency_ms,throughput_rpm,sample_size
+4k,1.0,0.0,10.098252977643694,55447.81818382118,100
+6k,1.0,0.0,10.091543197631836,55765.06094845141,100
