@@ -498,7 +498,12 @@ def logs():
     import sqlite3
     conn = sqlite3.connect("llm_logs.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT id, timestamp, user_id, prompt_encrypted, response_encrypted, previous_hash, current_hash, signature FROM logs ORDER BY id DESC LIMIT 20")
+    cursor.execute("""
+        SELECT id, timestamp, user_id, prompt_encrypted, response_encrypted, 
+               previous_hash, current_hash, signature, risk_level, 
+               time_lock_until, quorum_required, status 
+        FROM logs ORDER BY id DESC LIMIT 50
+    """)
     logs = cursor.fetchall()
     conn.close()
     return render_template("logs.html", logs=logs)
