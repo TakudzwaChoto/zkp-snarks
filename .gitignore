@@ -68,3 +68,4 @@ tk.pub
 !results_evaluation_complete/*.png
 !results_individual_datasets/*/*.png
 !results_anticollusion/*.png
+!results_comprehensive_by_size/*.png
