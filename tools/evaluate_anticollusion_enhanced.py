@@ -10,8 +10,12 @@ import json
 import time
 import csv
 import sqlite3
+import sys
 from datetime import datetime, timedelta
 from typing import List, Tuple, Dict, Any
+
+# Add parent directory to path for imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import matplotlib
 matplotlib.use('Agg')
