@@ -69,5 +69,7 @@ tk.pub
 !results_individual_datasets/*/*.png
 !results_anticollusion/*.png
 !results_comprehensive_by_size/*.png
+!results_comprehensive_by_size/*.csv
+!results_comprehensive_by_size/*.json
 !results_runs/*/*.csv
 !results_runs/*/*.png
