@@ -17,6 +17,7 @@ except Exception:
 @dataclass
 class SemanticModel:
     pipeline: object
+    threshold: float = 0.5
 
     def predict(self, texts: List[str]) -> List[int]:
         if hasattr(self.pipeline, 'predict'):
@@ -127,13 +128,47 @@ def train_semantic_model(pairs: List[Tuple[str, str]]) -> SemanticModel:
                 return probs
 
         import math, re  # local import for fallback
-        return SemanticModel(SimpleNB())
+        model = SemanticModel(SimpleNB(), threshold=0.35)
+        # derive threshold to target recall if possible
+        probs = [p[1] for p in model.pipeline.predict_proba(texts)]  # type: ignore
+        # simple threshold targeting recall >= 0.95
+        target_recall = 0.95
+        best_thr = 0.35
+        best_rec = 0.0
+        for thr in [i / 100 for i in range(5, 100, 1)]:
+            preds = [1 if pr >= thr else 0 for pr in probs]
+            tp = sum(1 for y, p in zip(labels, preds) if y == 1 and p == 1)
+            fn = sum(1 for y, p in zip(labels, preds) if y == 1 and p == 0)
+            rec = tp / (tp + fn) if (tp + fn) else 0.0
+            if rec >= target_recall:
+                best_thr = thr
+                best_rec = rec
+                break
+        model.threshold = best_thr
+        return model
     pipe = Pipeline([
-        ("tfidf", TfidfVectorizer(ngram_range=(1,2), max_features=50000, min_df=2)),
-        ("clf", LogisticRegression(max_iter=200))
+        ("tfidf", TfidfVectorizer(ngram_range=(1,2), max_features=100000, min_df=2)),
+        ("clf", LogisticRegression(max_iter=2000, C=2.0, class_weight='balanced'))
     ])
     pipe.fit(texts, labels)
-    return SemanticModel(pipe)
+    model = SemanticModel(pipe, threshold=0.35)
+    # Calibrate threshold on training data to target high recall
+    try:
+        proba = model.predict_proba(texts)
+        target_recall = 0.95
+        best_thr = 0.35
+        for thr in [i / 100 for i in range(5, 100, 1)]:
+            preds = [1 if pr >= thr else 0 for pr in proba]
+            tp = sum(1 for y, p in zip(labels, preds) if y == 1 and p == 1)
+            fn = sum(1 for y, p in zip(labels, preds) if y == 1 and p == 0)
+            rec = tp / (tp + fn) if (tp + fn) else 0.0
+            if rec >= target_recall:
+                best_thr = thr
+                break
+        model.threshold = best_thr
+    except Exception:
+        model.threshold = 0.35
+    return model
 
 
 def evaluate_semantic_model(model: SemanticModel, pairs: List[Tuple[str, str]]) -> str:

@@ -357,7 +357,11 @@ class AdvancedEvaluationPipeline:
         try:
             if self.semantic_model is not None:
                 prob_adv = float(self.semantic_model.predict_proba([prompt])[0])  # type: ignore
-                semantic_threshold = float(os.getenv('SEMANTIC_THRESHOLD', '0.35'))
+                # Use learned threshold by default; allow env override
+                if os.getenv('SEMANTIC_THRESHOLD') is not None:
+                    semantic_threshold = float(os.getenv('SEMANTIC_THRESHOLD', '0.35'))
+                else:
+                    semantic_threshold = float(getattr(self.semantic_model, 'threshold', 0.35))
                 label = 'adversarial' if prob_adv >= semantic_threshold else 'safe'
                 return DetectionResult(
                     prompt=prompt,
@@ -366,7 +370,7 @@ class AdvancedEvaluationPipeline:
                     confidence=prob_adv,
                     detection_time=time.time()-start_time,
                     method="LLM Simulator",
-                    metadata={"semantic": True}
+                    metadata={"semantic": True, "threshold": semantic_threshold}
                 )
         except Exception:
             pass
