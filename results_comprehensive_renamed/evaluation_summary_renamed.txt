@@ -1,15 +1,15 @@
 === Comprehensive Dataset Evaluation Summary (Renamed) ===
 
-Evaluation completed on: 2025-08-26 00:40:37
-Total datasets evaluated: 4
+Evaluation completed on: 2025-08-26 16:47:01
+Total datasets evaluated: 5
 
 --- 4K_CURATED ---
 Estimated Size: 16,001 entries
 Detection Rate: 100.0%
 False Positive Rate: 0.0%
 Tamper Resistance: 100.0%
-Latency: 15.11 ms
-Throughput: 6,618 RPM
+Latency: 15.12 ms
+Throughput: 6,616 RPM
 Total Entries: 1,000
 Sample Size: 1,000
 
@@ -18,8 +18,8 @@ Estimated Size: 6,499 entries
 Detection Rate: 100.0%
 False Positive Rate: 0.0%
 Tamper Resistance: 100.0%
-Latency: 15.11 ms
-Throughput: 6,621 RPM
+Latency: 15.12 ms
+Throughput: 6,618 RPM
 Total Entries: 1,000
 Sample Size: 1,000
 
@@ -28,8 +28,18 @@ Estimated Size: 200,001 entries
 Detection Rate: 100.0%
 False Positive Rate: 0.0%
 Tamper Resistance: 100.0%
+Latency: 15.12 ms
+Throughput: 6,617 RPM
+Total Entries: 1,000
+Sample Size: 1,000
+
+--- 120K_KAGGLE ---
+Estimated Size: 120,000 entries
+Detection Rate: 100.0%
+False Positive Rate: 0.0%
+Tamper Resistance: 100.0%
 Latency: 15.11 ms
-Throughput: 6,619 RPM
+Throughput: 6,620 RPM
 Total Entries: 1,000
 Sample Size: 1,000
 
@@ -39,7 +49,7 @@ Detection Rate: 100.0%
 False Positive Rate: 0.0%
 Tamper Resistance: 100.0%
 Latency: 15.11 ms
-Throughput: 6,619 RPM
+Throughput: 6,618 RPM
 Total Entries: 1,000
 Sample Size: 1,000
 
