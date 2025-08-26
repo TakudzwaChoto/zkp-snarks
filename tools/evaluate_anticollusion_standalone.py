@@ -15,12 +15,13 @@ from typing import List, Tuple, Dict, Any
 
 DATASET_PATHS = {
     '4k': 'data/4kdata.json',
-    '6k': 'Prompt_INJECTION_And_Benign_DATASET_COMBINED_6K_20250820_031034.jsonl',
+    '6k': 'Prompt_INJECTION_And_Benign_DATASET_EXPANDED_6K_20250820_031115.jsonl',
     '50k': 'data/50kdata.json',
+    '120k': 'data/120kdata.json',
     '200k': 'data/200kdata.json'
 }
 OUTDIR = 'results_anticollusion'
-TIMELOCK_DELAYS = [0, 5, 15, 30, 60]  # seconds
+TIMELOCK_DELAYS = [0, 0.005, 0.015]  # seconds (reduced for fast eval)
 HIGH_RISK_THRESHOLDS = [0.7, 0.8, 0.9]  # risk thresholds
 
 
@@ -322,7 +323,7 @@ def main():
     """Main evaluation function"""
     all_results = {}
     
-    for size in ['4k', '6k', '50k', '200k']:
+    for size in ['4k', '6k', '50k', '120k', '200k']:
         print(f"\n=== Evaluating {size} dataset ===")
         
         # Load dataset
@@ -338,10 +339,10 @@ def main():
         sample_n = min(len(data), 1000 if size in ['4k', '6k'] else 500)
         
         # Basic metrics
-        cdr = high_risk_collusion_detection(data, sample_n, risk_threshold=0.8, timelock_delay=15)
+        cdr = high_risk_collusion_detection(data, sample_n, risk_threshold=0.8, timelock_delay=0.015)
         fpr = false_positive_rate(data, risk_threshold=0.8)
-        tr = tamper_resistance_with_timelock(data, min(100, sample_n), timelock_delay=15)
-        sc = scalability_with_risk_distribution(data, high_risk_ratio=0.5, timelock_delay=15)
+        tr = tamper_resistance_with_timelock(data, min(100, sample_n), timelock_delay=0.015)
+        sc = scalability_with_risk_distribution(data, high_risk_ratio=0.5, timelock_delay=0.015)
         
         # Risk threshold analysis (for 6k dataset)
         risk_analysis = {}

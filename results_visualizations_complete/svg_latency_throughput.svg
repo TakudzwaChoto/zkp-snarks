@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="440" viewBox="0 0 900 440">
+<rect x="0" y="0" width="100%" height="100%" fill="#ffffff" />
+<text x="450.00" y="30.00" font-size="18" text-anchor="middle" font-weight="bold" font-family="Inter, Arial, sans-serif">Latency and Throughput by Dataset Size</text>
+<line x1="60.00" y1="60.00" x2="420.00" y2="60.00" stroke="#eee" stroke-width="1.00" />
+<line x1="60.00" y1="124.00" x2="420.00" y2="124.00" stroke="#eee" stroke-width="1.00" />
+<line x1="60.00" y1="188.00" x2="420.00" y2="188.00" stroke="#eee" stroke-width="1.00" />
+<line x1="60.00" y1="252.00" x2="420.00" y2="252.00" stroke="#eee" stroke-width="1.00" />
+<line x1="60.00" y1="316.00" x2="420.00" y2="316.00" stroke="#eee" stroke-width="1.00" />
+<line x1="60.00" y1="380.00" x2="420.00" y2="380.00" stroke="#eee" stroke-width="1.00" />
+<rect x="60.00" y="63.11" width="54.40" height="316.89" fill="#4e79a7" />
+<text x="87.20" y="57.11" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">15.11 ms</text>
+<rect x="128.00" y="63.01" width="54.40" height="316.99" fill="#4e79a7" />
+<text x="155.20" y="57.01" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">15.11 ms</text>
+<rect x="196.00" y="63.03" width="54.40" height="316.97" fill="#4e79a7" />
+<text x="223.20" y="57.03" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">15.11 ms</text>
+<rect x="264.00" y="60.00" width="54.40" height="320.00" fill="#4e79a7" />
+<text x="291.20" y="54.00" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">15.26 ms</text>
+<rect x="332.00" y="63.09" width="54.40" height="316.91" fill="#4e79a7" />
+<text x="359.20" y="57.09" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">15.11 ms</text>
+<text x="240.00" y="400.00" font-size="12" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">Latency (ms)</text>
+<text x="87.20" y="416.00" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">4k</text>
+<text x="155.20" y="416.00" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">6k</text>
+<text x="223.20" y="416.00" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">50k</text>
+<text x="291.20" y="416.00" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">120k</text>
+<text x="359.20" y="416.00" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">200k</text>
+<line x1="480.00" y1="60.00" x2="840.00" y2="60.00" stroke="#eee" stroke-width="1.00" />
+<line x1="480.00" y1="124.00" x2="840.00" y2="124.00" stroke="#eee" stroke-width="1.00" />
+<line x1="480.00" y1="188.00" x2="840.00" y2="188.00" stroke="#eee" stroke-width="1.00" />
+<line x1="480.00" y1="252.00" x2="840.00" y2="252.00" stroke="#eee" stroke-width="1.00" />
+<line x1="480.00" y1="316.00" x2="840.00" y2="316.00" stroke="#eee" stroke-width="1.00" />
+<line x1="480.00" y1="380.00" x2="840.00" y2="380.00" stroke="#eee" stroke-width="1.00" />
+<rect x="480.00" y="60.14" width="54.40" height="319.86" fill="#59a14f" />
+<text x="507.20" y="54.14" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">6618 RPM</text>
+<rect x="548.00" y="60.00" width="54.40" height="320.00" fill="#59a14f" />
+<text x="575.20" y="54.00" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">6621 RPM</text>
+<rect x="616.00" y="60.08" width="54.40" height="319.92" fill="#59a14f" />
+<text x="643.20" y="54.08" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">6619 RPM</text>
+<rect x="684.00" y="60.15" width="54.40" height="319.85" fill="#59a14f" />
+<text x="711.20" y="54.15" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">6618 RPM</text>
+<rect x="752.00" y="60.07" width="54.40" height="319.93" fill="#59a14f" />
+<text x="779.20" y="54.07" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">6619 RPM</text>
+<text x="660.00" y="400.00" font-size="12" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">Throughput (RPM)</text>
+<text x="507.20" y="416.00" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">4k</text>
+<text x="575.20" y="416.00" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">6k</text>
+<text x="643.20" y="416.00" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">50k</text>
+<text x="711.20" y="416.00" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">120k</text>
+<text x="779.20" y="416.00" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">200k</text>
+</svg>

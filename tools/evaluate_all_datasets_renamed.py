@@ -13,19 +13,21 @@ from typing import List, Tuple, Dict, Any
 # Dataset paths with descriptive names
 DATASET_PATHS = {
     '4k_curated': 'data/4kdata.json',           # 16,001 entries (16k)
-    '6k_kaggle': 'Prompt_INJECTION_And_Benign_DATASET_COMBINED_6K_20250820_031115.jsonl',  # 6,499 entries (6.5k)
+    '6k_kaggle': 'Prompt_INJECTION_And_Benign_DATASET_EXPANDED_6K_20250820_031115.jsonl',  # 6,499 entries (6.5k)
     '50k_curated': 'data/50kdata.json',         # 200,001 entries (200k)
+    '120k_kaggle': 'data/120kdata.json',        # ~120k entries
     '200k_curated': 'data/200kdata.json',       # 800,001 entries (800k)
     'archive_mpdd': 'archive/MPDD.pkl'          # ~12MB estimated ~100k-150k entries
 }
 
 # Estimated sizes based on file analysis
 ESTIMATED_SIZES = {
-    '4k_curated': 16001,      # Actual: 16,001 entries
-    '6k_kaggle': 6499,        # Actual: 6,499 entries  
-    '50k_curated': 200001,    # Actual: 200,001 entries
-    '200k_curated': 800001,   # Actual: 800,001 entries
-    'archive_mpdd': 120000,   # Estimated: ~120k entries based on 12MB file size
+    '4k_curated': 16001,
+    '6k_kaggle': 6499,
+    '50k_curated': 200001,
+    '120k_kaggle': 120000,
+    '200k_curated': 800001,
+    'archive_mpdd': 120000,
 }
 
 OUTDIR = 'results_comprehensive_renamed'
@@ -287,8 +289,9 @@ def main():
     print("- 4k_curated: Curated 4K dataset")
     print("- 6k_kaggle: Kaggle-based 6K dataset") 
     print("- 50k_curated: Curated 50K dataset")
-    print("- 200k_curated: Curated 200K dataset")
-    print("- archive_mpdd: Archive MPDD dataset (~120K estimated)\n")
+print("- 120k_kaggle: Kaggle-based 120K dataset")
+print("- 200k_curated: Curated 200K dataset")
+print("- archive_mpdd: Archive MPDD dataset (~120K estimated)\n")
     
     all_results = {}
     
