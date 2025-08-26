@@ -8,15 +8,18 @@ Generates individual reports and visualizations for each dataset.
 import os
 import json
 import csv
-import matplotlib.pyplot as plt
-import numpy as np
-import seaborn as sns
+try:
+	import matplotlib.pyplot as plt
+	import seaborn as sns
+	HAS_MPL = True
+	# Set style for better-looking plots
+	plt.style.use('default')
+	sns.set_palette("husl")
+except Exception:
+	HAS_MPL = False
 from datetime import datetime
+import numpy as np
 import pandas as pd
-
-# Set style for better-looking plots
-plt.style.use('default')
-sns.set_palette("husl")
 
 # Configuration
 DATASETS = {
@@ -28,7 +31,7 @@ DATASETS = {
         'description': '4K Curated Dataset'
     },
     '6k': {
-        'path': 'Prompt_INJECTION_And_Benign_DATASET_COMBINED_6K_20250820_031115.jsonl',
+        'path': 'Prompt_INJECTION_And_Benign_DATASET_EXPANDED_6K_20250820_031115.jsonl',
         'size': 6499,
         'type': 'Kaggle',
         'color': '#ff7f0e',
@@ -189,6 +192,9 @@ def evaluate_dataset(dataset_name, dataset_config, samples):
 def create_individual_visualizations(dataset_name, dataset_config, results):
     """Create individual visualizations for each dataset."""
     if not results:
+        return
+    if not HAS_MPL:
+        print("matplotlib not available; skipping per-dataset visualizations.")
         return
     
     # Create dataset-specific output directory
