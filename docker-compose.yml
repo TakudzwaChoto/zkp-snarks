@@ -38,4 +38,18 @@ services:
     volumes:
       - ./zk/build:/app/build
     profiles:
-      - build 
+      - build
+
+  trainer:
+    build:
+      context: .
+      dockerfile: Dockerfile.train
+    volumes:
+      - ./:/app
+    environment:
+      - MODEL_NAME=distilroberta-base
+      - OUTPUT_DIR=/app/models/ft_distilroberta
+      - TRAIN_DS=/app/data/120kdata.json
+      - EVAL_DS=/app/data/6k_expanded.csv
+    profiles:
+      - train 
