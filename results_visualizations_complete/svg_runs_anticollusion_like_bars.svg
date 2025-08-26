@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="420" viewBox="0 0 900 420">
+<rect x="0" y="0" width="100%" height="100%" fill="#ffffff" />
+<text x="450.00" y="30.00" font-size="18" text-anchor="middle" font-weight="bold" font-family="Inter, Arial, sans-serif">Anti-Collusion-like Metrics from run_evaluation</text>
+<line x1="60.00" y1="60.00" x2="840.00" y2="60.00" stroke="#eee" stroke-width="1.00" />
+<line x1="60.00" y1="120.00" x2="840.00" y2="120.00" stroke="#eee" stroke-width="1.00" />
+<line x1="60.00" y1="180.00" x2="840.00" y2="180.00" stroke="#eee" stroke-width="1.00" />
+<line x1="60.00" y1="240.00" x2="840.00" y2="240.00" stroke="#eee" stroke-width="1.00" />
+<line x1="60.00" y1="300.00" x2="840.00" y2="300.00" stroke="#eee" stroke-width="1.00" />
+<line x1="60.00" y1="360.00" x2="840.00" y2="360.00" stroke="#eee" stroke-width="1.00" />
+<rect x="60.00" y="60.00" width="35.10" height="300.00" fill="#4e79a7" />
+<text x="77.55" y="54.00" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">95.0%</text>
+<rect x="216.00" y="360.00" width="35.10" height="0.00" fill="#4e79a7" />
+<text x="233.55" y="354.00" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">0.0%</text>
+<rect x="372.00" y="60.19" width="35.10" height="299.81" fill="#4e79a7" />
+<text x="389.55" y="54.19" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">94.9%</text>
+<rect x="528.00" y="60.11" width="35.10" height="299.89" fill="#4e79a7" />
+<text x="545.55" y="54.11" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">95.0%</text>
+<rect x="684.00" y="60.12" width="35.10" height="299.88" fill="#4e79a7" />
+<text x="701.55" y="54.12" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">95.0%</text>
+<rect x="99.00" y="309.02" width="35.10" height="50.98" fill="#f28e2b" />
+<text x="116.55" y="303.02" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">7.7%</text>
+<rect x="255.00" y="60.00" width="35.10" height="300.00" fill="#f28e2b" />
+<text x="272.55" y="54.00" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">45.0%</text>
+<rect x="411.00" y="312.50" width="35.10" height="47.50" fill="#f28e2b" />
+<text x="428.55" y="306.50" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">7.1%</text>
+<rect x="567.00" y="253.81" width="35.10" height="106.19" fill="#f28e2b" />
+<text x="584.55" y="247.81" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">15.9%</text>
+<rect x="723.00" y="254.17" width="35.10" height="105.83" fill="#f28e2b" />
+<text x="740.55" y="248.17" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">15.9%</text>
+<rect x="138.00" y="61.69" width="35.10" height="298.31" fill="#59a14f" />
+<text x="155.55" y="55.69" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">92.3%</text>
+<rect x="294.00" y="182.39" width="35.10" height="177.61" fill="#59a14f" />
+<text x="311.55" y="176.39" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">55.0%</text>
+<rect x="450.00" y="60.00" width="35.10" height="300.00" fill="#59a14f" />
+<text x="467.55" y="54.00" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">92.9%</text>
+<rect x="606.00" y="88.45" width="35.10" height="271.55" fill="#59a14f" />
+<text x="623.55" y="82.45" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">84.1%</text>
+<rect x="762.00" y="88.27" width="35.10" height="271.73" fill="#59a14f" />
+<text x="779.55" y="82.27" font-size="11" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">84.1%</text>
+<text x="118.50" y="380.00" font-size="12" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">4k</text>
+<text x="274.50" y="380.00" font-size="12" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">6k</text>
+<text x="430.50" y="380.00" font-size="12" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">50k</text>
+<text x="586.50" y="380.00" font-size="12" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">120k</text>
+<text x="742.50" y="380.00" font-size="12" text-anchor="middle" font-weight="normal" font-family="Inter, Arial, sans-serif">200k</text>
+<rect x="620.00" y="30.00" width="14.00" height="14.00" fill="#4e79a7" />
+<text x="640.00" y="42.00" font-size="12" text-anchor="start" font-weight="normal" font-family="Inter, Arial, sans-serif">Collusion Detection Rate</text>
+<rect x="690.00" y="30.00" width="14.00" height="14.00" fill="#f28e2b" />
+<text x="710.00" y="42.00" font-size="12" text-anchor="start" font-weight="normal" font-family="Inter, Arial, sans-serif">False Positive Rate</text>
+<rect x="760.00" y="30.00" width="14.00" height="14.00" fill="#59a14f" />
+<text x="780.00" y="42.00" font-size="12" text-anchor="start" font-weight="normal" font-family="Inter, Arial, sans-serif">Tamper Resistance</text>
+</svg>

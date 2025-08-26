@@ -77,6 +77,41 @@ def read_per_size_anticollusion(anti_dir: str) -> Dict[str, Dict[str, float]]:
 	return out
 
 
+def read_latest_metrics_csv(dirpath: str) -> Optional[str]:
+	files = sorted(glob.glob(os.path.join(dirpath, 'metrics_*.csv')))
+	return files[-1] if files else None
+
+
+def derive_anticollusion_from_metrics(metrics_csv: str) -> Dict[str, float]:
+	# Map: detection_rate=recall, false_positive_rate=1-specificity, tamper_resistance=specificity,
+	# latency_ms=avg_detection_time(ms) for Ensemble, throughput_rpm ~ 60/avg_time for Ensemble
+	with open(metrics_csv, 'r', encoding='utf-8') as f:
+		lines = [l.rstrip('\n') for l in f]
+	# Build dict metric->cols
+	head = lines[0].split(',')
+	cols = {name.strip(): idx for idx, name in enumerate(head)}
+	rows = {}
+	for line in lines[1:]:
+		parts = line.split(',')
+		if not parts or len(parts) < 2:
+			continue
+		rows[parts[0]] = parts
+	# Prefer Ensemble method
+	m = 'Ensemble'
+	rec = float(rows.get('recall', ['','0','0','0','0'])[cols.get(m, 1)])
+	spec = float(rows.get('specificity', ['','0','0','0','0'])[cols.get(m, 1)])
+	avg_s = float(rows.get('avg_detection_time', ['','0','0','0','0'])[cols.get(m, 1)])
+	lat_ms = avg_s * 1000.0
+	thr = (60.0 / avg_s) if avg_s > 0 else 0.0
+	return {
+		'collusion_detection_rate': rec,
+		'false_positive_rate': max(0.0, 1.0 - spec),
+		'tamper_resistance': spec,
+		'latency_ms': lat_ms,
+		'throughput_rpm': thr,
+	}
+
+
 # --- Minimal SVG helpers ---
 
 def svg_rect(x: float, y: float, w: float, h: float, fill: str = '#4e79a7') -> str:
@@ -263,6 +298,45 @@ def build_anticollusion_summary(aggregate: Optional[Dict[str, float]], per_size:
 	write_svg(filename, width, height, content)
 
 
+def build_from_runs_to_csv_and_svg() -> None:
+	# Map size to runs dir
+	size_dirs = {
+		'4k': 'results_runs/4k',
+		'6k': 'results_runs/6k',
+		'50k': 'results_runs/50k',
+		'120k': 'results_runs/120k',
+		'200k': 'results_runs/200k',
+	}
+	agg: Dict[str, Dict[str, float]] = {}
+	for size, d in size_dirs.items():
+		csv_path = read_latest_metrics_csv(d)
+		if not csv_path:
+			continue
+		agg[size] = derive_anticollusion_from_metrics(csv_path)
+	# Write CSV
+	out_csv = os.path.join(OUTPUT_DIR, 'anticollusion_like_from_runs.csv')
+	with open(out_csv, 'w', encoding='utf-8') as f:
+		f.write('size,collusion_detection_rate,false_positive_rate,tamper_resistance,latency_ms,throughput_rpm\n')
+		for size in ['4k','6k','50k','120k','200k']:
+			if size in agg:
+				vals = agg[size]
+				f.write(f"{size},{vals['collusion_detection_rate']},{vals['false_positive_rate']},{vals['tamper_resistance']},{vals['latency_ms']},{vals['throughput_rpm']}\n")
+	# Build SVG
+	# Convert to comp-like names to reuse chart
+	comp_like: Dict[str, Dict[str, float]] = {}
+	map_back = {'4k':'4k_curated','6k':'6k_kaggle','50k':'50k_curated','120k':'120k_kaggle','200k':'200k_curated'}
+	for size, vals in agg.items():
+		comp_like[map_back[size]] = {
+			'collusion_detection_rate': vals['collusion_detection_rate'],
+			'false_positive_rate': vals['false_positive_rate'],
+			'tamper_resistance': vals['tamper_resistance'],
+			'latency_ms': vals['latency_ms'],
+			'throughput_rpm': vals['throughput_rpm'],
+		}
+	build_performance_bars(comp_like, ['collusion_detection_rate','false_positive_rate','tamper_resistance'], 'Anti-Collusion-like Metrics from run_evaluation', 'svg_runs_anticollusion_like_bars.svg')
+	build_latency_throughput_bars(comp_like, 'svg_runs_latency_throughput.svg')
+
+
 def main() -> None:
 	ensure_output_dir()
 	# Load comprehensive
@@ -280,6 +354,8 @@ def main() -> None:
 	agg = read_latest_anticollusion_json(ANTI_DIR)
 	per = read_per_size_anticollusion(ANTI_DIR)
 	build_anticollusion_summary(agg, per, 'svg_anticollusion_summary.svg')
+	# Derived from runs
+	build_from_runs_to_csv_and_svg()
 	print(f"SVGs written to {OUTPUT_DIR}")
 
 
