@@ -236,7 +236,15 @@ class AdvancedEvaluationPipeline:
                             prompt = parts[idx_map['prompt']].strip('"') if idx_map['prompt'] < len(parts) else ''
                             label = parts[idx_map['label']].strip('"') if idx_map['label'] < len(parts) else ''
                             if prompt and label:
-                                records.append((prompt, label))
+                                # Normalize label variants to canonical set
+                                low = label.strip().lower()
+                                if low in ['malicious', 'adversarial', 'attack']:
+                                    norm = 'adversarial'
+                                elif low in ['benign', 'safe', 'normal', 'harmless', 'clean', 'non-malicious']:
+                                    norm = 'benign'
+                                else:
+                                    norm = low
+                                records.append((prompt, norm))
                         else:
                             btxt = parts[idx_map['benign']].strip('"') if idx_map['benign'] < len(parts) else ''
                             atxt = parts[idx_map['adversarial']].strip('"') if idx_map['adversarial'] < len(parts) else ''
@@ -292,7 +300,8 @@ class AdvancedEvaluationPipeline:
         is_valid = self.zkp_security.verify_prompt_safety_proof(zkp_proof, safety_rules)
         # Harden ZKP decision with sanitizer/DFA signals (high recall without changing ZKP API)
         norm_for_sanitizer, triggered, matched_patterns = sanitize_prompt(prompt)
-        if triggered:
+        force_block = os.getenv('SANITIZER_FORCE_BLOCK', 'true').lower() == 'true'
+        if force_block and triggered:
             is_valid = False
         
         detection_time = time.time() - start_time
@@ -417,6 +426,12 @@ class AdvancedEvaluationPipeline:
         
         # Weighted ensemble tuned for higher recall on paraphrase-heavy datasets
         weights = {"ZKP": 0.2, "Regex": 0.3, "LLM": 0.5}
+        # Allow environment overrides
+        try:
+            env_thr = float(os.getenv('ENSEMBLE_THRESHOLD', '0.15'))
+        except Exception:
+            env_thr = 0.15
+        two_vote = os.getenv('ENSEMBLE_TWO_VOTE', 'false').lower() == 'true'
         
         zkp_score = 1 if zkp_result.predicted_label == "adversarial" else 0
         regex_score = 1 if regex_result.predicted_label == "adversarial" else 0
@@ -426,12 +441,19 @@ class AdvancedEvaluationPipeline:
                          regex_score * weights["Regex"] + 
                          llm_score * weights["LLM"])
         
+        # Optional two-vote rule to reduce FPR
+        if two_vote:
+            adv_votes = zkp_score + regex_score + llm_score
+            is_adversarial = adv_votes >= 2
+        else:
+            is_adversarial = ensemble_score >= env_thr
+        
         detection_time = time.time() - start_time
         
         return DetectionResult(
             prompt=prompt,
             true_label="",
-            predicted_label="adversarial" if ensemble_score >= 0.15 else "safe",
+            predicted_label="adversarial" if is_adversarial else "safe",
             confidence=ensemble_score,
             detection_time=detection_time,
             method="Ensemble",
@@ -439,7 +461,9 @@ class AdvancedEvaluationPipeline:
                 "zkp_score": zkp_score,
                 "regex_score": regex_score,
                 "llm_score": llm_score,
-                "ensemble_score": ensemble_score
+                "ensemble_score": ensemble_score,
+                "two_vote": two_vote,
+                "threshold": env_thr,
             }
         )
     
