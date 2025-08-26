@@ -409,14 +409,19 @@ class AdvancedEvaluationPipeline:
             total_risk += risk_factors["dialogue"]
         total_risk += max(-0.05, min(0.05, random.uniform(-0.05, 0.05)))
         total_risk = max(0.0, min(1.0, total_risk))
+        # Env-configurable fallback threshold to tune FPR/recall
+        try:
+            risk_thr = float(os.getenv('LLM_RISK_THRESHOLD', '0.5'))
+        except Exception:
+            risk_thr = 0.5
         return DetectionResult(
             prompt=prompt,
             true_label="",
-            predicted_label="adversarial" if total_risk >= 0.5 else "safe",
+            predicted_label="adversarial" if total_risk >= risk_thr else "safe",
             confidence=total_risk,
             detection_time=time.time()-start_time,
             method="LLM Simulator",
-            metadata={"risk": total_risk}
+            metadata={"risk": total_risk, "risk_threshold": risk_thr}
         )
     
     def ensemble_detection(self, prompt: str) -> DetectionResult:
