@@ -6,12 +6,13 @@ from dataclasses import dataclass
 try:
     from sklearn.feature_extraction.text import TfidfVectorizer  # type: ignore
     from sklearn.linear_model import LogisticRegression  # type: ignore
-    from sklearn.pipeline import Pipeline  # type: ignore
+    from sklearn.pipeline import Pipeline, FeatureUnion  # type: ignore
     from sklearn.metrics import classification_report  # type: ignore
 except Exception:
     TfidfVectorizer = None
     LogisticRegression = None
     Pipeline = None
+    FeatureUnion = None
     classification_report = None
 
 @dataclass
@@ -146,9 +147,14 @@ def train_semantic_model(pairs: List[Tuple[str, str]]) -> SemanticModel:
                 break
         model.threshold = best_thr
         return model
+    # Build a feature union: word and char n-grams
+    features = FeatureUnion([
+        ("word", TfidfVectorizer(ngram_range=(1,2), max_features=150000, min_df=2)),
+        ("char", TfidfVectorizer(analyzer='char_wb', ngram_range=(3,5), min_df=2))
+    ])
     pipe = Pipeline([
-        ("tfidf", TfidfVectorizer(ngram_range=(1,2), max_features=100000, min_df=2)),
-        ("clf", LogisticRegression(max_iter=2000, C=2.0, class_weight='balanced'))
+        ("features", features),
+        ("clf", LogisticRegression(max_iter=3000, C=3.0, class_weight='balanced'))
     ])
     pipe.fit(texts, labels)
     model = SemanticModel(pipe, threshold=0.35)
