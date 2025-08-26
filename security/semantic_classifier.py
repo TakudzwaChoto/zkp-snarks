@@ -8,12 +8,16 @@ try:
     from sklearn.linear_model import LogisticRegression  # type: ignore
     from sklearn.pipeline import Pipeline, FeatureUnion  # type: ignore
     from sklearn.metrics import classification_report  # type: ignore
+    from sklearn.svm import LinearSVC  # type: ignore
+    from sklearn.calibration import CalibratedClassifierCV  # type: ignore
 except Exception:
     TfidfVectorizer = None
     LogisticRegression = None
     Pipeline = None
     FeatureUnion = None
     classification_report = None
+    LinearSVC = None
+    CalibratedClassifierCV = None
 
 @dataclass
 class SemanticModel:
@@ -152,9 +156,15 @@ def train_semantic_model(pairs: List[Tuple[str, str]]) -> SemanticModel:
         ("word", TfidfVectorizer(ngram_range=(1,2), max_features=150000, min_df=2)),
         ("char", TfidfVectorizer(analyzer='char_wb', ngram_range=(3,5), min_df=2))
     ])
+    # Try LinearSVC with calibration for better recall on hard negatives
+    if LinearSVC is not None and CalibratedClassifierCV is not None:
+        base = LinearSVC(C=1.0)
+        clf = CalibratedClassifierCV(base, method='sigmoid', cv=3)
+    else:
+        clf = LogisticRegression(max_iter=3000, C=3.0, class_weight='balanced')
     pipe = Pipeline([
         ("features", features),
-        ("clf", LogisticRegression(max_iter=3000, C=3.0, class_weight='balanced'))
+        ("clf", clf)
     ])
     pipe.fit(texts, labels)
     model = SemanticModel(pipe, threshold=0.35)
