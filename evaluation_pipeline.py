@@ -618,32 +618,38 @@ class AdvancedEvaluationPipeline:
         return metrics
     
     def create_visualizations(self, all_results: Dict[str, List[DetectionResult]], metrics: Dict[str, Dict[str, float]]):
-        """Create comprehensive visualizations"""
+        """Create comprehensive visualizations with beautiful styling"""
         print("\n📊 Generating visualizations...")
         
-        skip_plots = os.getenv('SKIP_PLOTS', 'true').lower() == 'true'
-        if not skip_plots and plt is not None and sns is not None:
-            # Set up the plotting style with beautiful colors
+        skip_plots = os.getenv('SKIP_PLOTS', 'false').lower() == 'true'
+        if skip_plots or plt is None or sns is None:
+            print("Skipping plots (set SKIP_PLOTS=false to enable and ensure matplotlib/seaborn installed)")
+            return None
+        
+        try:
+            # Set up modern plotting style
             plt.style.use('default')
-            if sns is not None:
-                sns.set_palette("husl")
-                sns.set_style("whitegrid", {
-                    'axes.facecolor': '#f8f9fa',
-                    'axes.edgecolor': '#dee2e6',
-                    'grid.color': '#e9ecef',
-                    'grid.linestyle': '--',
-                    'grid.alpha': 0.7
-                })
-            
-            fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-            fig.suptitle('ZKP-Based LLM Security: Comprehensive Evaluation Results', 
-                        fontsize=18, fontweight='bold', color='#2c3e50', y=0.95)
+            sns.set_palette("husl")
+            sns.set_style("whitegrid", {
+                'axes.facecolor': '#f8f9fa',
+                'axes.edgecolor': '#dee2e6',
+                'grid.color': '#e9ecef',
+                'grid.linestyle': '--',
+                'grid.alpha': 0.7
+            })
             
             # Beautiful color palettes
             bar_colors = ['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe', '#00f2fe']
+            time_colors = ['#a8edea', '#fed6e3', '#ffecd2', '#fcb69f', '#ff9a9e', '#fecfef']
             hist_colors = ['#4ECDC4', '#FF6B6B', '#45B7D1', '#96CEB4']
             
-            # 1. Enhanced Metrics comparison with beautiful colors
+            # Create comprehensive visualization
+            fig = plt.figure(figsize=(20, 16))
+            fig.suptitle('ZKP-Based LLM Security: Comprehensive Evaluation Results', 
+                        fontsize=20, fontweight='bold', color='#2c3e50', y=0.98)
+            
+            # 1. Performance Metrics Comparison (Enhanced)
+            ax1 = plt.subplot(3, 3, (1, 2))
             methods = list(metrics.keys())
             precision = [metrics[m]['precision'] for m in methods]
             recall = [metrics[m]['recall'] for m in methods]
@@ -653,74 +659,192 @@ class AdvancedEvaluationPipeline:
             x = np.arange(len(methods))
             width = 0.2
             
-            # Use beautiful colors for each metric
-            axes[0, 0].bar(x - width*1.5, precision, width, label='Precision', 
-                           color=bar_colors[0], alpha=0.8, edgecolor='white', linewidth=1)
-            axes[0, 0].bar(x - width*0.5, recall, width, label='Recall', 
-                           color=bar_colors[1], alpha=0.8, edgecolor='white', linewidth=1)
-            axes[0, 0].bar(x + width*0.5, f1, width, label='F1', 
-                           color=bar_colors[2], alpha=0.8, edgecolor='white', linewidth=1)
-            axes[0, 0].bar(x + width*1.5, accuracy, width, label='Accuracy', 
-                           color=bar_colors[3], alpha=0.8, edgecolor='white', linewidth=1)
+            ax1.bar(x - width*1.5, precision, width, label='Precision', 
+                   color=bar_colors[0], alpha=0.8, edgecolor='white', linewidth=1)
+            ax1.bar(x - width*0.5, recall, width, label='Recall', 
+                   color=bar_colors[1], alpha=0.8, edgecolor='white', linewidth=1)
+            ax1.bar(x + width*0.5, f1, width, label='F1', 
+                   color=bar_colors[2], alpha=0.8, edgecolor='white', linewidth=1)
+            ax1.bar(x + width*1.5, accuracy, width, label='Accuracy', 
+                   color=bar_colors[3], alpha=0.8, edgecolor='white', linewidth=1)
             
-            axes[0, 0].set_xlabel('Detection Methods', fontweight='bold')
-            axes[0, 0].set_ylabel('Score', fontweight='bold')
-            axes[0, 0].set_title('Performance Metrics Comparison', fontweight='bold', color='#2c3e50')
-            axes[0, 0].set_xticks(x)
-            axes[0, 0].set_xticklabels(methods, rotation=45, ha='right')
-            axes[0, 0].legend(framealpha=0.9, fancybox=True, shadow=True)
-            axes[0, 0].grid(True, alpha=0.3, linestyle='--')
-            axes[0, 0].set_ylim(0, 1.1)
+            ax1.set_xlabel('Detection Methods', fontweight='bold', fontsize=12)
+            ax1.set_ylabel('Score', fontweight='bold', fontsize=12)
+            ax1.set_title('Performance Metrics Comparison', fontweight='bold', color='#2c3e50', fontsize=14)
+            ax1.set_xticks(x)
+            ax1.set_xticklabels(methods, rotation=45, ha='right')
+            ax1.legend(framealpha=0.9, fancybox=True, shadow=True)
+            ax1.grid(True, alpha=0.3, linestyle='--')
+            ax1.set_ylim(0, 1.1)
             
-            # 2. Enhanced Detection time comparison with gradient colors
+            # 2. Detection Time Comparison
+            ax2 = plt.subplot(3, 3, 3)
             detection_times = [metrics[m]['avg_detection_time']*1000 for m in methods]
-            time_colors = ['#a8edea', '#fed6e3', '#ffecd2', '#fcb69f', '#ff9a9e', '#fecfef']
             
-            bars = axes[0, 1].bar(methods, detection_times, 
-                                 color=time_colors[:len(methods)], alpha=0.8, 
-                                 edgecolor='white', linewidth=2)
-            axes[0, 1].set_xlabel('Detection Methods', fontweight='bold')
-            axes[0, 1].set_ylabel('Average Detection Time (ms)', fontweight='bold')
-            axes[0, 1].set_title('Performance Comparison', fontweight='bold', color='#2c3e50')
-            axes[0, 1].tick_params(axis='x', rotation=45, ha='right')
+            bars = ax2.bar(methods, detection_times, 
+                          color=time_colors[:len(methods)], alpha=0.8, 
+                          edgecolor='white', linewidth=2)
+            ax2.set_xlabel('Detection Methods', fontweight='bold', fontsize=12)
+            ax2.set_ylabel('Average Detection Time (ms)', fontweight='bold', fontsize=12)
+            ax2.set_title('Performance Comparison', fontweight='bold', color='#2c3e50', fontsize=14)
+            ax2.tick_params(axis='x', rotation=45)
             
-            # Add value labels on bars with enhanced styling
+            # Add value labels on bars
             for bar, time in zip(bars, detection_times):
-                axes[0, 1].text(bar.get_x() + bar.get_width()/2, bar.get_height() + max(detection_times) * 0.01,
-                               f'{time:.1f}ms', ha='center', va='bottom', fontweight='bold')
+                ax2.text(bar.get_x() + bar.get_width()/2, bar.get_height() + max(detection_times) * 0.01,
+                        f'{time:.1f}ms', ha='center', va='bottom', fontweight='bold')
             
-            # 3. Enhanced Confusion matrix with beautiful colormap
-            zkp_results = all_results["ZKP Framework"]
-            y_true = [1 if r.true_label == "adversarial" else 0 for r in zkp_results]
-            y_pred = [1 if r.predicted_label == "adversarial" else 0 for r in zkp_results]
+            # 3. Confusion Matrix
+            ax3 = plt.subplot(3, 3, 4)
+            zkp_results = all_results.get("ZKP Framework", [])
+            if zkp_results:
+                y_true = [1 if r.true_label == "adversarial" else 0 for r in zkp_results]
+                y_pred = [1 if r.predicted_label == "adversarial" else 0 for r in zkp_results]
+                
+                cm = confusion_matrix(y_true, y_pred)
+                sns.heatmap(cm, annot=True, fmt='d', cmap='RdYlBu_r', ax=ax3,
+                           cbar_kws={'label': 'Count'}, linewidths=0.5, linecolor='white')
+                ax3.set_title('ZKP Framework: Confusion Matrix', fontweight='bold', color='#2c3e50', fontsize=14)
+                ax3.set_xlabel('Predicted', fontweight='bold')
+                ax3.set_ylabel('Actual', fontweight='bold')
             
-            cm = confusion_matrix(y_true, y_pred)
-            # Use a beautiful diverging colormap
-            sns.heatmap(cm, annot=True, fmt='d', cmap='RdYlBu_r', ax=axes[1, 0],
-                       cbar_kws={'label': 'Count'}, linewidths=0.5, linecolor='white')
-            axes[1, 0].set_title('ZKP Framework: Confusion Matrix', fontweight='bold', color='#2c3e50')
-            axes[1, 0].set_xlabel('Predicted', fontweight='bold')
-            axes[1, 0].set_ylabel('Actual', fontweight='bold')
+            # 4. Safety Score Distribution
+            ax4 = plt.subplot(3, 3, 5)
+            if zkp_results:
+                zkp_confidences = [r.confidence for r in zkp_results]
+                safe_confidences = [r.confidence for r in zkp_results if r.true_label in ["safe", "benign"]]
+                adv_confidences = [r.confidence for r in zkp_results if r.true_label == "adversarial"]
+                
+                ax4.hist(safe_confidences, alpha=0.8, label='Safe Prompts', bins=15, 
+                        color=hist_colors[0], edgecolor='white', linewidth=1)
+                ax4.hist(adv_confidences, alpha=0.8, label='Adversarial Prompts', bins=15, 
+                        color=hist_colors[1], edgecolor='white', linewidth=1)
+                ax4.set_xlabel('Safety Score', fontweight='bold', fontsize=12)
+                ax4.set_ylabel('Frequency', fontweight='bold', fontsize=12)
+                ax4.set_title('ZKP Safety Score Distribution', fontweight='bold', color='#2c3e50', fontsize=14)
+                ax4.legend(framealpha=0.9, fancybox=True, shadow=True)
+                ax4.grid(True, alpha=0.3, linestyle='--')
             
-            # 4. Enhanced Confidence distribution with beautiful colors
-            zkp_confidences = [r.confidence for r in zkp_results]
-            safe_confidences = [r.confidence for r in zkp_results if r.true_label in ["safe", "benign"]]
-            adv_confidences = [r.confidence for r in zkp_results if r.true_label == "adversarial"]
+            # 5. Method Performance Radar Chart
+            ax5 = plt.subplot(3, 3, 6, projection='polar')
+            if len(methods) >= 3:
+                # Prepare data for radar chart
+                categories = ['Precision', 'Recall', 'F1', 'Accuracy']
+                values = []
+                for method in methods[:3]:  # Top 3 methods
+                    method_values = [metrics[method].get(cat.lower(), 0) for cat in categories]
+                    values.append(method_values)
+                
+                # Create radar chart
+                angles = np.linspace(0, 2 * np.pi, len(categories), endpoint=False).tolist()
+                values = np.array(values)
+                
+                for i, method in enumerate(methods[:3]):
+                    ax5.plot(angles, values[i], 'o-', linewidth=2, label=method, color=bar_colors[i])
+                    ax5.fill(angles, values[i], alpha=0.25, color=bar_colors[i])
+                
+                ax5.set_xticks(angles)
+                ax5.set_xticklabels(categories)
+                ax5.set_ylim(0, 1)
+                ax5.set_title('Method Performance Comparison', fontweight='bold', color='#2c3e50', fontsize=14, pad=20)
+                ax5.legend(loc='upper right', bbox_to_anchor=(1.3, 1.0))
             
-            axes[1, 1].hist(safe_confidences, alpha=0.8, label='Safe Prompts', bins=15, 
-                           color=hist_colors[0], edgecolor='white', linewidth=1)
-            axes[1, 1].hist(adv_confidences, alpha=0.8, label='Adversarial Prompts', bins=15, 
-                           color=hist_colors[1], edgecolor='white', linewidth=1)
-            axes[1, 1].set_xlabel('Safety Score', fontweight='bold')
-            axes[1, 1].set_ylabel('Frequency', fontweight='bold')
-            axes[1, 1].set_title('ZKP Safety Score Distribution', fontweight='bold', color='#2c3e50')
-            axes[1, 1].legend(framealpha=0.9, fancybox=True, shadow=True)
-            axes[1, 1].grid(True, alpha=0.3, linestyle='--')
+            # 6. Performance Trends
+            ax6 = plt.subplot(3, 3, 7)
+            x_pos = np.arange(len(methods))
+            f1_scores = [metrics[m]['f1'] for m in methods]
             
-            # TODO: add true PR/ROC per method when positive probabilities available
+            bars = ax6.bar(x_pos, f1_scores, color=bar_colors[:len(methods)], alpha=0.8, edgecolor='white', linewidth=2)
+            ax6.set_xlabel('Detection Methods', fontweight='bold', fontsize=12)
+            ax6.set_ylabel('F1 Score', fontweight='bold', fontsize=12)
+            ax6.set_title('F1 Score Comparison', fontweight='bold', color='#2c3e50', fontsize=14)
+            ax6.set_xticks(x_pos)
+            ax6.set_xticklabels(methods, rotation=45, ha='right')
+            ax6.set_ylim(0, 1.1)
+            ax6.grid(True, alpha=0.3, linestyle='--')
+            
+            # Add value labels
+            for bar, score in zip(bars, f1_scores):
+                ax6.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01,
+                        f'{score:.3f}', ha='center', va='bottom', fontweight='bold')
+            
+            # 7. Method Distribution Pie Chart
+            ax7 = plt.subplot(3, 3, 8)
+            if zkp_results:
+                tp = sum(1 for r in zkp_results if r.true_label == 'adversarial' and r.predicted_label == 'adversarial')
+                tn = sum(1 for r in zkp_results if r.true_label == 'safe' and r.predicted_label == 'safe')
+                fp = sum(1 for r in zkp_results if r.true_label == 'safe' and r.predicted_label == 'adversarial')
+                fn = sum(1 for r in zkp_results if r.true_label == 'adversarial' and r.predicted_label == 'safe')
+                
+                sizes = [tp, tn, fp, fn]
+                labels = ['True Positives', 'True Negatives', 'False Positives', 'False Negatives']
+                colors = ['#4ECDC4', '#FF6B6B', '#45B7D1', '#96CEB4']
+                
+                wedges, texts, autotexts = ax7.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%',
+                                                   startangle=90, shadow=True, explode=(0.05, 0.05, 0.05, 0.05))
+                ax7.set_title('Detection Results Distribution', fontweight='bold', color='#2c3e50', fontsize=14)
+            
+            # 8. Latency vs Accuracy Scatter
+            ax8 = plt.subplot(3, 3, 9)
+            latencies = [metrics[m]['avg_detection_time']*1000 for m in methods]
+            accuracies = [metrics[m]['accuracy'] for m in methods]
+            
+            scatter = ax8.scatter(latencies, accuracies, c=range(len(methods)), 
+                                cmap='viridis', s=200, alpha=0.8, edgecolors='white', linewidth=2)
+            ax8.set_xlabel('Detection Time (ms)', fontweight='bold', fontsize=12)
+            ax8.set_ylabel('Accuracy', fontweight='bold', fontsize=12)
+            ax8.set_title('Latency vs Accuracy Trade-off', fontweight='bold', color='#2c3e50', fontsize=14)
+            ax8.grid(True, alpha=0.3, linestyle='--')
+            
+            # Add method labels
+            for i, method in enumerate(methods):
+                ax8.annotate(method, (latencies[i], accuracies[i]), 
+                            xytext=(5, 5), textcoords='offset points', fontweight='bold')
+            
+            plt.tight_layout()
+            plt.subplots_adjust(top=0.95)
+            
+            print("✅ Generated comprehensive visualizations with beautiful styling!")
             return fig
-        else:
-            print("Skipping plots (set SKIP_PLOTS=false to enable and ensure matplotlib/seaborn installed)")
+            
+        except Exception as e:
+            print(f"⚠️ Error generating visualizations: {e}")
+            print("Falling back to basic plots...")
+            return self._create_basic_plots(all_results, metrics)
+    
+    def _create_basic_plots(self, all_results: Dict[str, List[DetectionResult]], metrics: Dict[str, Dict[str, float]]):
+        """Fallback to basic plots if enhanced visualization fails"""
+        try:
+            fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+            fig.suptitle('Basic Evaluation Results', fontsize=16)
+            
+            methods = list(metrics.keys())
+            
+            # Basic metrics bar chart
+            axes[0, 0].bar(methods, [metrics[m]['f1'] for m in methods])
+            axes[0, 0].set_title('F1 Scores')
+            axes[0, 0].tick_params(axis='x', rotation=45)
+            
+            # Basic accuracy chart
+            axes[0, 1].bar(methods, [metrics[m]['accuracy'] for m in methods])
+            axes[0, 1].set_title('Accuracy Scores')
+            axes[0, 1].tick_params(axis='x', rotation=45)
+            
+            # Basic detection time chart
+            axes[1, 0].bar(methods, [metrics[m]['avg_detection_time']*1000 for m in methods])
+            axes[1, 0].set_title('Detection Time (ms)')
+            axes[1, 0].tick_params(axis='x', rotation=45)
+            
+            # Basic precision chart
+            axes[1, 1].bar(methods, [metrics[m]['precision'] for m in methods])
+            axes[1, 1].set_title('Precision Scores')
+            axes[1, 1].tick_params(axis='x', rotation=45)
+            
+            plt.tight_layout()
+            return fig
+            
+        except Exception as e:
+            print(f"⚠️ Basic plots also failed: {e}")
             return None
     
     def save_detailed_results(self, all_results: Dict[str, List[DetectionResult]], metrics: Dict[str, Dict[str, float]]):
@@ -851,6 +975,21 @@ class AdvancedEvaluationPipeline:
                 break
 
 if __name__ == "__main__":
-    # Run the complete evaluation
-    pipeline = AdvancedEvaluationPipeline()
+    # Add command-line argument parsing
+    import sys
+    
+    dataset_path = None
+    if len(sys.argv) > 1:
+        if sys.argv[1] == '--dataset' and len(sys.argv) > 2:
+            dataset_path = sys.argv[2]
+        elif sys.argv[1].endswith('.json') or sys.argv[1].endswith('.csv'):
+            dataset_path = sys.argv[1]
+    
+    if dataset_path:
+        print(f"🚀 Running evaluation on dataset: {dataset_path}")
+        pipeline = AdvancedEvaluationPipeline(dataset_path)
+    else:
+        print("🚀 Running evaluation on built-in dataset")
+        pipeline = AdvancedEvaluationPipeline()
+    
     pipeline.run_complete_evaluation()
