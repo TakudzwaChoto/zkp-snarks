@@ -254,6 +254,31 @@ def main(out_dir: str = "results_cross_dataset") -> None:
         plt.savefig(outp, dpi=180)
         plt.close(fig)
 
+        # Separate grouped bars for throughput (rpm)
+        mk = 'throughput_rpm'
+        mlabel = 'Throughput (rpm)'
+        plt.figure(figsize=(12, 6))
+        for mi, method in enumerate(present_methods):
+            vals = []
+            for _, df in dataset_frames:
+                if method in df.index and mk in df.columns:
+                    v = float(df.loc[method][mk])
+                    vals.append(v)
+                else:
+                    vals.append(float('nan'))
+            offsets = [xi + (mi - len(present_methods)/2) * bar_width + bar_width/2 for xi in x]
+            plt.bar(offsets, vals, width=bar_width, color=method_colors[method], label=method)
+        plt.title('Across datasets: Throughput (rpm) (grouped bars)')
+        plt.xlabel('Dataset size')
+        plt.ylabel('Throughput (rpm)')
+        plt.xticks(x, x_labels)
+        plt.grid(True, linestyle='--', alpha=0.3)
+        plt.legend(loc='upper left', ncol=min(6, len(present_methods)))
+        outp = os.path.join(out_dir, 'across_datasets_grouped_bars_throughput.png')
+        plt.tight_layout()
+        plt.savefig(outp, dpi=180)
+        plt.close()
+
 
 if __name__ == "__main__":
     out = sys.argv[1] if len(sys.argv) > 1 else "results_cross_dataset"
