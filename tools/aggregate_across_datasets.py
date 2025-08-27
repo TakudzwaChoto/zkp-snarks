@@ -49,9 +49,13 @@ def load_csv(csv_path: str) -> pd.DataFrame:
 
 def main(out_dir: str = "results_cross_dataset") -> None:
     os.makedirs(out_dir, exist_ok=True)
-    # Modern styling
+    # Modern styling with theme switch
+    theme = os.getenv('DASH_THEME', 'light').lower()
     try:
-        plt.style.use('seaborn-v0_8-whitegrid')
+        if theme == 'dark':
+            plt.style.use('dark_background')
+        else:
+            plt.style.use('seaborn-v0_8-whitegrid')
     except Exception:
         pass
     mpl.rcParams.update({
@@ -319,6 +323,12 @@ def main(out_dir: str = "results_cross_dataset") -> None:
             plt.savefig(outp_pdf)
         except Exception:
             pass
+        # SVG export for vector quality
+        outp_svg = os.path.join(out_dir, 'across_datasets_grouped_bars_dashboard.svg')
+        try:
+            plt.savefig(outp_svg)
+        except Exception:
+            pass
         plt.close(fig)
 
         # Separate grouped bars for throughput (rpm)
@@ -344,6 +354,11 @@ def main(out_dir: str = "results_cross_dataset") -> None:
         outp = os.path.join(out_dir, 'across_datasets_grouped_bars_throughput.png')
         plt.tight_layout()
         plt.savefig(outp, dpi=180)
+        # SVG export
+        try:
+            plt.savefig(os.path.join(out_dir, 'across_datasets_grouped_bars_throughput.svg'))
+        except Exception:
+            pass
         plt.close()
 
 
