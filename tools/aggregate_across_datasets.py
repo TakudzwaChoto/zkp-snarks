@@ -6,6 +6,7 @@ from typing import Dict, List, Tuple
 
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 
 
 DATASET_ORDER = [
@@ -48,6 +49,19 @@ def load_csv(csv_path: str) -> pd.DataFrame:
 
 def main(out_dir: str = "results_cross_dataset") -> None:
     os.makedirs(out_dir, exist_ok=True)
+    # Modern styling
+    try:
+        plt.style.use('seaborn-v0_8-whitegrid')
+    except Exception:
+        pass
+    mpl.rcParams.update({
+        'axes.titlesize': 12,
+        'axes.labelsize': 11,
+        'xtick.labelsize': 10,
+        'ytick.labelsize': 10,
+        'legend.fontsize': 10,
+        'figure.titlesize': 16,
+    })
 
     # Collect per-dataset DataFrames
     dataset_frames: List[Tuple[str, pd.DataFrame]] = []
@@ -246,7 +260,7 @@ def main(out_dir: str = "results_cross_dataset") -> None:
         ]
 
         fig, axes = plt.subplots(2, 5, figsize=(26, 10))
-        fig.suptitle('Across datasets: metrics as percentages (grouped bars with legend)', fontsize=16)
+        fig.suptitle('Across Datasets — Security Metrics (Grouped Bars)', fontsize=18, fontweight='bold')
         palette = ['#2563EB', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#14B8A6', '#F97316']
         method_colors = {m: palette[i % len(palette)] for i, m in enumerate(present_methods)}
         x = list(range(len(x_labels)))
@@ -285,15 +299,18 @@ def main(out_dir: str = "results_cross_dataset") -> None:
                     vals.append(v_out)
                 offsets = [xi + (mi - len(present_methods)/2) * bar_width + bar_width/2 for xi in x]
                 ax.bar(offsets, vals, width=bar_width, color=method_colors[method], label=method if idx == 0 else None)
-            ax.set_title(mlabel)
+            ax.set_title(mlabel, fontweight='bold')
             ax.set_xticks(x)
             ax.set_xticklabels(x_labels)
             ax.set_ylim(0, 105)
-            ax.grid(True, linestyle='--', alpha=0.3)
+            ax.grid(True, linestyle='--', alpha=0.35)
+            # value labels
+            for container in ax.containers:
+                ax.bar_label(container, fmt='%.0f', padding=2, fontsize=8)
         # Shared legend
         handles = [plt.Line2D([0], [0], marker='s', color=method_colors[m], markersize=10, linewidth=0) for m in present_methods]
         fig.legend(handles, present_methods, title='Method', loc='upper center', ncol=min(6, len(present_methods)))
-        plt.tight_layout(rect=[0, 0.06, 1, 0.95])
+        plt.tight_layout(rect=[0, 0.06, 1, 0.92])
         outp = os.path.join(out_dir, 'across_datasets_grouped_bars_dashboard.png')
         plt.savefig(outp, dpi=180)
         plt.close(fig)
