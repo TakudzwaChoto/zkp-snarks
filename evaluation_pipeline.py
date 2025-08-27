@@ -72,6 +72,8 @@ class AdvancedEvaluationPipeline:
         self.transformer_enabled = os.getenv('ENABLE_TRANSFORMER', 'false').lower() == 'true'
         self._tf_tokenizer = None
         self._tf_model = None
+        # HF Inference API token (fallback path)
+        self.hf_api_token = os.getenv('HF_TOKEN') or os.getenv('HUGGINGFACE_HUB_TOKEN') or os.getenv('HF_API_TOKEN')
         if self.transformer_enabled and AutoTokenizer is not None and AutoModelForSequenceClassification is not None:
             try:
                 self._tf_tokenizer = AutoTokenizer.from_pretrained(self.transformer_model_name)
@@ -79,7 +81,8 @@ class AdvancedEvaluationPipeline:
                 self._tf_model.eval()
             except Exception as e:
                 print(f"Transformer disabled (load error): {e}")
-                self.transformer_enabled = False
+                self._tf_model = None
+                self._tf_tokenizer = None
         # Allow env override of ZKP threshold
         thr = os.getenv("ZKP_THRESHOLD")
         if thr:
@@ -96,6 +99,14 @@ class AdvancedEvaluationPipeline:
                 self.semantic_model = train_semantic_model(self.test_dataset)
         except Exception:
             self.semantic_model = None
+        # Optional evaluation cap to avoid huge external calls
+        try:
+            limit = int(os.getenv('EVAL_LIMIT', '0'))
+            if limit > 0 and isinstance(self.test_dataset, list):
+                self.test_dataset = self.test_dataset[:limit]
+                print(f"EVAL_LIMIT applied: evaluating on first {len(self.test_dataset)} samples")
+        except Exception:
+            pass
         
     def _load_comprehensive_dataset(self) -> List[Tuple[str, str]]:
         """Load comprehensive test dataset with various attack patterns"""
@@ -480,18 +491,50 @@ class AdvancedEvaluationPipeline:
         """Transformer-based classifier; returns probability as confidence."""
         start_time = time.time()
         try:
-            if not self.transformer_enabled or self._tf_model is None or self._tf_tokenizer is None or torch is None:
-                # Fallback: heuristic on normalized prompt
+            if not self.transformer_enabled:
+                # Fallback: heuristic
                 prob = 1.0 if any(k in prompt.lower() for k in ("ignore","bypass","admin","password","system prompt")) else 0.0
                 label = 'adversarial' if prob >= self.transformer_threshold else 'safe'
                 return DetectionResult(prompt=prompt, true_label='', predicted_label=label, confidence=prob, detection_time=time.time()-start_time, method='Transformer (heuristic)', metadata={})
-            inputs = self._tf_tokenizer(prompt, truncation=True, padding=True, max_length=256, return_tensors='pt')
-            with torch.no_grad():
-                logits = self._tf_model(**inputs).logits
-                probs = torch.softmax(logits, dim=-1).cpu().numpy()[0]
-            prob_adv = float(probs[1])  # assume label 1 is adversarial
-            label = 'adversarial' if prob_adv >= self.transformer_threshold else 'safe'
-            return DetectionResult(prompt=prompt, true_label='', predicted_label=label, confidence=prob_adv, detection_time=time.time()-start_time, method='Transformer', metadata={'model': self.transformer_model_name})
+            # Local model path
+            if self._tf_model is not None and self._tf_tokenizer is not None and torch is not None:
+                inputs = self._tf_tokenizer(prompt, truncation=True, padding=True, max_length=256, return_tensors='pt')
+                with torch.no_grad():
+                    logits = self._tf_model(**inputs).logits
+                    probs = torch.softmax(logits, dim=-1).cpu().numpy()[0]
+                prob_adv = float(probs[1])
+                label = 'adversarial' if prob_adv >= self.transformer_threshold else 'safe'
+                return DetectionResult(prompt=prompt, true_label='', predicted_label=label, confidence=prob_adv, detection_time=time.time()-start_time, method='Transformer', metadata={'model': self.transformer_model_name})
+            # HF Inference API fallback
+            if requests is not None and self.hf_api_token and self.transformer_model_name:
+                url = f"https://api-inference.huggingface.co/models/{self.transformer_model_name}"
+                headers = {"Authorization": f"Bearer {self.hf_api_token}"}
+                payload = {"inputs": prompt}
+                try:
+                    resp = requests.post(url, headers=headers, json=payload, timeout=15)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    # data can be list of list[{'label','score'}] or list[{'label','score'}]
+                    scores = data[0] if isinstance(data, list) and data and isinstance(data[0], list) else data
+                    prob_adv = None
+                    # Try to find label 'LABEL_1' or contains '1' or 'adversarial'
+                    for item in scores:
+                        lbl = str(item.get('label','')).lower()
+                        if '1' in lbl or 'adv' in lbl or 'adversarial' in lbl:
+                            prob_adv = float(item.get('score', 0.0))
+                            break
+                    if prob_adv is None and scores:
+                        # Fallback: take max score as adversarial
+                        prob_adv = float(max(scores, key=lambda x: x.get('score',0.0)).get('score', 0.0))
+                    prob_adv = float(prob_adv or 0.0)
+                    label = 'adversarial' if prob_adv >= self.transformer_threshold else 'safe'
+                    return DetectionResult(prompt=prompt, true_label='', predicted_label=label, confidence=prob_adv, detection_time=time.time()-start_time, method='Transformer (HF API)', metadata={'model': self.transformer_model_name})
+                except Exception as e:
+                    return DetectionResult(prompt=prompt, true_label='', predicted_label='error', confidence=0.0, detection_time=time.time()-start_time, method='Transformer (HF API)', metadata={'error': str(e)})
+            # Final fallback
+            prob = 1.0 if any(k in prompt.lower() for k in ("ignore","bypass","admin","password","system prompt")) else 0.0
+            label = 'adversarial' if prob >= self.transformer_threshold else 'safe'
+            return DetectionResult(prompt=prompt, true_label='', predicted_label=label, confidence=prob, detection_time=time.time()-start_time, method='Transformer (heuristic)', metadata={})
         except Exception as e:
             return DetectionResult(prompt=prompt, true_label='', predicted_label='error', confidence=0.0, detection_time=time.time()-start_time, method='Transformer', metadata={'error': str(e)})
     
