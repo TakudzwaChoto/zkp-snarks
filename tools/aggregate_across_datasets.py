@@ -7,6 +7,7 @@ from typing import Dict, List, Tuple
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+import numpy as np
 
 
 DATASET_ORDER = [
@@ -244,16 +245,26 @@ def main(out_dir: str = "results_cross_dataset") -> None:
                 if m in df.index:
                     if 'latency_ms' in df.columns:
                         try:
-                            all_latency.append(float(df.loc[m]['latency_ms']))
+                            lv = float(df.loc[m]['latency_ms'])
+                            if np.isfinite(lv) and lv >= 0:
+                                all_latency.append(lv)
                         except Exception:
                             pass
                     if 'throughput_rpm' in df.columns:
                         try:
-                            all_throughput.append(float(df.loc[m]['throughput_rpm']))
+                            tv = float(df.loc[m]['throughput_rpm'])
+                            if np.isfinite(tv) and tv >= 0:
+                                all_throughput.append(tv)
                         except Exception:
                             pass
-        lat_min, lat_max = (min(all_latency), max(all_latency)) if all_latency else (0.0, 1.0)
-        thr_min, thr_max = (min(all_throughput), max(all_throughput)) if all_throughput else (0.0, 1.0)
+        if all_latency:
+            lat_min, lat_max = (min(all_latency), max(all_latency))
+        else:
+            lat_min, lat_max = (0.0, 1.0)
+        if all_throughput:
+            thr_min, thr_max = (min(all_throughput), max(all_throughput))
+        else:
+            thr_min, thr_max = (0.0, 1.0)
 
         # Build metric spec including normalized latency/throughput
         dashboard_specs = pct_metrics + [
@@ -283,14 +294,20 @@ def main(out_dir: str = "results_cross_dataset") -> None:
                             try:
                                 v = float(df.loc[method]['latency_ms'])
                                 # lower latency -> higher %
-                                v_out = (lat_max - v) / (lat_max - lat_min) * 100.0
+                                if np.isfinite(v) and v >= 0:
+                                    v_out = (lat_max - v) / (lat_max - lat_min) * 100.0
+                                else:
+                                    v_out = float('nan')
                             except Exception:
                                 v_out = float('nan')
                         elif mk == 'throughput_rpm_norm_pct' and 'throughput_rpm' in df.columns and thr_max > thr_min:
                             try:
                                 v = float(df.loc[method]['throughput_rpm'])
                                 # higher throughput -> higher %
-                                v_out = (v - thr_min) / (thr_max - thr_min) * 100.0
+                                if np.isfinite(v) and v >= 0:
+                                    v_out = (v - thr_min) / (thr_max - thr_min) * 100.0
+                                else:
+                                    v_out = float('nan')
                             except Exception:
                                 v_out = float('nan')
                         elif mk in df.columns:
