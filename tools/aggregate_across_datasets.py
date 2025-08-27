@@ -325,9 +325,17 @@ def main(out_dir: str = "results_cross_dataset") -> None:
             ax.set_xticklabels(x_labels)
             ax.set_ylim(0, 105)
             ax.grid(True, linestyle='--', alpha=0.35)
-            # value labels
+            # y-axis and value labels with % for percentage/normalized metrics
+            if is_pct or mk.endswith('_norm_pct'):
+                ax.set_ylabel('%')
+                fmt = '%.0f%%'
+            else:
+                fmt = '%.0f'
             for container in ax.containers:
-                ax.bar_label(container, fmt='%.0f', padding=2, fontsize=8)
+                try:
+                    ax.bar_label(container, fmt=fmt, padding=2, fontsize=8)
+                except Exception:
+                    pass
         # Shared legend
         handles = [plt.Line2D([0], [0], marker='s', color=method_colors[m], markersize=10, linewidth=0) for m in present_methods]
         fig.legend(handles, present_methods, title='Method', loc='upper center', ncol=min(6, len(present_methods)))
