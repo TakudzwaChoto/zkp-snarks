@@ -216,29 +216,73 @@ def main(out_dir: str = "results_cross_dataset") -> None:
             plt.savefig(outp, dpi=170)
             plt.close()
 
-    # 5) All-in-one grouped bar dashboard across datasets (percentage metrics)
+    # 5) All-in-one grouped bar dashboard across datasets
+    # Include native percentage metrics AND normalized latency/throughput as percentages
     pct_metrics = [(mk, mlabel, scale, is_pct) for mk, mlabel, scale, is_pct in METRICS if is_pct]
     if dataset_frames and present_methods:
-        fig, axes = plt.subplots(2, 4, figsize=(22, 10))
-        fig.suptitle('Across datasets: percentage metrics (grouped bars with legend)', fontsize=16)
+        # Compute global min/max for latency and throughput to normalize to %
+        all_latency: List[float] = []
+        all_throughput: List[float] = []
+        for _, df in dataset_frames:
+            for m in present_methods:
+                if m in df.index:
+                    if 'latency_ms' in df.columns:
+                        try:
+                            all_latency.append(float(df.loc[m]['latency_ms']))
+                        except Exception:
+                            pass
+                    if 'throughput_rpm' in df.columns:
+                        try:
+                            all_throughput.append(float(df.loc[m]['throughput_rpm']))
+                        except Exception:
+                            pass
+        lat_min, lat_max = (min(all_latency), max(all_latency)) if all_latency else (0.0, 1.0)
+        thr_min, thr_max = (min(all_throughput), max(all_throughput)) if all_throughput else (0.0, 1.0)
+
+        # Build metric spec including normalized latency/throughput
+        dashboard_specs = pct_metrics + [
+            ('latency_ms_norm_pct', 'Latency (normalized %)', 1.0, True),
+            ('throughput_rpm_norm_pct', 'Throughput (normalized %)', 1.0, True),
+        ]
+
+        fig, axes = plt.subplots(2, 5, figsize=(26, 10))
+        fig.suptitle('Across datasets: metrics as percentages (grouped bars with legend)', fontsize=16)
         palette = ['#2563EB', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#14B8A6', '#F97316']
         method_colors = {m: palette[i % len(palette)] for i, m in enumerate(present_methods)}
         x = list(range(len(x_labels)))
         total_width = 0.8
         bar_width = total_width / max(1, len(present_methods))
-        for idx, (mk, mlabel, scale, is_pct) in enumerate(pct_metrics[:8]):
-            r = idx // 4
-            c = idx % 4
+        for idx, (mk, mlabel, scale, is_pct) in enumerate(dashboard_specs[:10]):
+            r = idx // 5
+            c = idx % 5
             ax = axes[r][c]
             # For each method, compute values across datasets
             for mi, method in enumerate(present_methods):
                 vals = []
                 for _, df in dataset_frames:
-                    if method in df.index and mk in df.columns:
-                        v = float(df.loc[method][mk])
-                        vals.append(v * scale)
-                    else:
-                        vals.append(float('nan'))
+                    v_out = float('nan')
+                    if method in df.index:
+                        if mk == 'latency_ms_norm_pct' and 'latency_ms' in df.columns and lat_max > lat_min:
+                            try:
+                                v = float(df.loc[method]['latency_ms'])
+                                # lower latency -> higher %
+                                v_out = (lat_max - v) / (lat_max - lat_min) * 100.0
+                            except Exception:
+                                v_out = float('nan')
+                        elif mk == 'throughput_rpm_norm_pct' and 'throughput_rpm' in df.columns and thr_max > thr_min:
+                            try:
+                                v = float(df.loc[method]['throughput_rpm'])
+                                # higher throughput -> higher %
+                                v_out = (v - thr_min) / (thr_max - thr_min) * 100.0
+                            except Exception:
+                                v_out = float('nan')
+                        elif mk in df.columns:
+                            try:
+                                v = float(df.loc[method][mk])
+                                v_out = v * scale
+                            except Exception:
+                                v_out = float('nan')
+                    vals.append(v_out)
                 offsets = [xi + (mi - len(present_methods)/2) * bar_width + bar_width/2 for xi in x]
                 ax.bar(offsets, vals, width=bar_width, color=method_colors[method], label=method if idx == 0 else None)
             ax.set_title(mlabel)
