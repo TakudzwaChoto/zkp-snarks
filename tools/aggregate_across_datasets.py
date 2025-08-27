@@ -50,12 +50,10 @@ def load_csv(csv_path: str) -> pd.DataFrame:
 def main(out_dir: str = "results_cross_dataset") -> None:
     os.makedirs(out_dir, exist_ok=True)
     # Modern styling with theme switch
+    # Force white background visuals for publication
     theme = os.getenv('DASH_THEME', 'light').lower()
     try:
-        if theme == 'dark':
-            plt.style.use('dark_background')
-        else:
-            plt.style.use('seaborn-v0_8-whitegrid')
+        plt.style.use('seaborn-v0_8-whitegrid')
     except Exception:
         pass
     mpl.rcParams.update({
@@ -264,6 +262,7 @@ def main(out_dir: str = "results_cross_dataset") -> None:
         ]
 
         fig, axes = plt.subplots(2, 5, figsize=(26, 10))
+        fig.patch.set_facecolor('white')
         fig.suptitle('Across Datasets — Security Metrics (Grouped Bars)', fontsize=18, fontweight='bold')
         palette = ['#2563EB', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#14B8A6', '#F97316']
         method_colors = {m: palette[i % len(palette)] for i, m in enumerate(present_methods)}
@@ -304,6 +303,7 @@ def main(out_dir: str = "results_cross_dataset") -> None:
                 offsets = [xi + (mi - len(present_methods)/2) * bar_width + bar_width/2 for xi in x]
                 ax.bar(offsets, vals, width=bar_width, color=method_colors[method], label=method if idx == 0 else None)
             ax.set_title(mlabel, fontweight='bold')
+            ax.set_facecolor('white')
             ax.set_xticks(x)
             ax.set_xticklabels(x_labels)
             ax.set_ylim(0, 105)
@@ -334,23 +334,46 @@ def main(out_dir: str = "results_cross_dataset") -> None:
         # Separate grouped bars for throughput (rpm)
         mk = 'throughput_rpm'
         mlabel = 'Throughput (rpm)'
-        plt.figure(figsize=(12, 6))
+        fig_t = plt.figure(figsize=(12, 6))
+        fig_t.patch.set_facecolor('white')
+        ax_t = plt.gca()
+        ax_t.set_facecolor('white')
         for mi, method in enumerate(present_methods):
             vals = []
             for _, df in dataset_frames:
                 if method in df.index and mk in df.columns:
                     v = float(df.loc[method][mk])
-                    vals.append(v)
+                    # Guard against infinities/negatives
+                    if v == float('inf') or v != v or v < 0:
+                        vals.append(float('nan'))
+                    else:
+                        vals.append(v)
                 else:
                     vals.append(float('nan'))
             offsets = [xi + (mi - len(present_methods)/2) * bar_width + bar_width/2 for xi in x]
-            plt.bar(offsets, vals, width=bar_width, color=method_colors[method], label=method)
-        plt.title('Across datasets: Throughput (rpm) (grouped bars)')
-        plt.xlabel('Dataset size')
-        plt.ylabel('Throughput (rpm)')
-        plt.xticks(x, x_labels)
-        plt.grid(True, linestyle='--', alpha=0.3)
-        plt.legend(loc='upper left', ncol=min(6, len(present_methods)))
+            ax_t.bar(offsets, vals, width=bar_width, color=method_colors[method], label=method)
+        # Scale Y based on finite values only
+        import numpy as _np
+        finite_vals = []
+        for _, df in dataset_frames:
+            for m in present_methods:
+                if m in df.index and mk in df.columns:
+                    try:
+                        vv = float(df.loc[m][mk])
+                        if _np.isfinite(vv) and vv >= 0:
+                            finite_vals.append(vv)
+                    except Exception:
+                        pass
+        if finite_vals:
+            ymax = max(finite_vals) * 1.1
+            ax_t.set_ylim(0, ymax)
+        ax_t.set_title('Across datasets: Throughput (rpm) (grouped bars)', fontweight='bold')
+        ax_t.set_xlabel('Dataset size')
+        ax_t.set_ylabel('Throughput (rpm)')
+        ax_t.set_xticks(x)
+        ax_t.set_xticklabels(x_labels)
+        ax_t.grid(True, linestyle='--', alpha=0.3)
+        ax_t.legend(loc='upper left', ncol=min(6, len(present_methods)))
         outp = os.path.join(out_dir, 'across_datasets_grouped_bars_throughput.png')
         plt.tight_layout()
         plt.savefig(outp, dpi=180)
