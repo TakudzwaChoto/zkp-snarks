@@ -581,7 +581,23 @@ class AdvancedEvaluationPipeline:
         # Calculate metrics for each method
         metrics = {}
         for method_name, results in all_results.items():
-            metrics[method_name] = self.calculate_metrics(results)
+            base = self.calculate_metrics(results)
+            metrics[method_name] = base
+        
+        # Compute perturbation-based Tamper Resistance for core methods
+        try:
+            tr_targets = {
+                'ZKP Framework': self.zkp_detection,
+                'Regex Baseline': self.regex_baseline,
+                'LLM Simulator': self.llm_simulator,
+                'Ensemble': self.ensemble_detection,
+            }
+            for m_name, fn in tr_targets.items():
+                if m_name in metrics:
+                    tr_score = self._compute_tamper_resistance(m_name, fn, self.test_dataset, k_variants=1)
+                    metrics[m_name]['tamper_resistance'] = tr_score
+        except Exception as _e:
+            pass
         
         # Print comparison table
         print(f"\n{'Method':<20} {'Precision':<10} {'Recall':<10} {'F1':<10} {'Accuracy':<10} {'Time(ms)':<10}")
@@ -617,6 +633,94 @@ class AdvancedEvaluationPipeline:
         
         return metrics
     
+    # --- Tamper Resistance (perturbation-based) utilities ---
+    def _tr_random_case(self, text: str) -> str:
+        try:
+            import random
+            return ''.join(ch.upper() if random.random() < 0.5 else ch.lower() for ch in text)
+        except Exception:
+            return text
+
+    def _tr_random_spacing(self, text: str) -> str:
+        try:
+            import random, re
+            text = re.sub(r"\s+", " ", text).strip()
+            parts = text.split(" ")
+            out = []
+            for token in parts:
+                out.append(token)
+                if random.random() < 0.2:
+                    out.append("")
+            return " ".join(out)
+        except Exception:
+            return text
+
+    def _tr_to_leetspeak(self, text: str) -> str:
+        try:
+            import random
+            mapping = {"a": "4", "e": "3", "i": "1", "o": "0", "s": "5", "t": "7"}
+            out = []
+            for ch in text:
+                lower = ch.lower()
+                if lower in mapping and random.random() < 0.5:
+                    repl = mapping[lower]
+                    out.append(repl.upper() if ch.isupper() else repl)
+                else:
+                    out.append(ch)
+            return ''.join(out)
+        except Exception:
+            return text
+
+    def _tr_inject_homoglyphs(self, text: str) -> str:
+        try:
+            import random
+            mapping = {"a": "а", "e": "е", "o": "ο", "p": "р", "c": "с"}
+            out = []
+            for ch in text:
+                lower = ch.lower()
+                if lower in mapping and random.random() < 0.25:
+                    out.append(mapping[lower])
+                else:
+                    out.append(ch)
+            return ''.join(out)
+        except Exception:
+            return text
+
+    def _perturb_prompt(self, prompt: str) -> str:
+        try:
+            import random
+            transforms = [self._tr_random_case, self._tr_random_spacing, self._tr_to_leetspeak, self._tr_inject_homoglyphs]
+            k = 2 if len(prompt) > 0 else 1
+            random.shuffle(transforms)
+            out = prompt
+            for fn in transforms[:k]:
+                out = fn(out)
+            return out
+        except Exception:
+            return prompt
+
+    def _compute_tamper_resistance(self, method_name: str, detect_fn, dataset: List[Tuple[str, str]], k_variants: int = 1, max_adversarial: int = 2000) -> float:
+        # Sample adversarial prompts
+        try:
+            import random
+            adversarial_prompts = [p for (p, y) in dataset if y == 'adversarial']
+            if not adversarial_prompts:
+                return 0.0
+            random.shuffle(adversarial_prompts)
+            adversarial_prompts = adversarial_prompts[:max_adversarial]
+            total = 0
+            detected = 0
+            for prompt in adversarial_prompts:
+                for _ in range(k_variants):
+                    perturbed = self._perturb_prompt(prompt)
+                    r = detect_fn(perturbed)
+                    if r.predicted_label == 'adversarial':
+                        detected += 1
+                    total += 1
+            return (detected / total) if total > 0 else 0.0
+        except Exception:
+            return 0.0
+
     def create_visualizations(self, all_results: Dict[str, List[DetectionResult]], metrics: Dict[str, Dict[str, float]]):
         """Create comprehensive visualizations with beautiful styling"""
         print("\n📊 Generating visualizations...")
@@ -882,9 +986,9 @@ class AdvancedEvaluationPipeline:
                     lambda r: (r['false_positives'] / (r['false_positives'] + r['true_negatives'])) if (r['false_positives'] + r['true_negatives']) > 0 else 0.0,
                     axis=1
                 )
-                # Tamper Resistance (treat as robustness to adversarial tampering) ≈ Recall/Sensitivity
-                # If a distinct definition is needed later, we can adjust here centrally.
-                metrics_df['tamper_resistance'] = metrics_df['recall']
+                # Tamper Resistance: if not already computed upstream, fall back to recall
+                if 'tamper_resistance' not in metrics_df.columns:
+                    metrics_df['tamper_resistance'] = metrics_df['recall']
                 # Latency in milliseconds
                 metrics_df['latency_ms'] = metrics_df['avg_detection_time'] * 1000.0
                 # Throughput in requests per minute
