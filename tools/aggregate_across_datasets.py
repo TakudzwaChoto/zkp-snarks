@@ -174,6 +174,31 @@ def main(out_dir: str = "results_cross_dataset") -> None:
         plt.savefig(outp, dpi=180)
         plt.close(fig)
 
+    # 4) Per-dataset per-metric charts: bar + marker for all methods
+    for label, df in dataset_frames:
+        methods = df.index.tolist()
+        for mk, mlabel, scale, is_pct in METRICS:
+            vals = []
+            for m in methods:
+                val = float(df.loc[m][mk]) if mk in df.columns else float('nan')
+                vals.append(val * scale if pd.notna(val) else float('nan'))
+            plt.figure(figsize=(10, 6))
+            # Bar plot
+            bars = plt.bar(methods, vals, color='#22C55E', alpha=0.7, label='bar')
+            # Marker overlay
+            plt.plot(methods, vals, linestyle='None', marker='D', markersize=8, color='#1D4ED8', label='marker')
+            plt.title(f'{mlabel} - {label} (all methods)')
+            plt.ylabel(f"{mlabel}{' (%)' if is_pct else ''}")
+            plt.xticks(rotation=45)
+            plt.grid(True, linestyle='--', alpha=0.3)
+            for i, v in enumerate(vals):
+                if pd.notna(v):
+                    plt.text(i, v, f"{v:.2f}", ha='center', va='bottom', fontsize=8)
+            outp = os.path.join(out_dir, f"per_dataset_{label}_{mk}_all_methods.png")
+            plt.tight_layout()
+            plt.savefig(outp, dpi=170)
+            plt.close()
+
 
 if __name__ == "__main__":
     out = sys.argv[1] if len(sys.argv) > 1 else "results_cross_dataset"
