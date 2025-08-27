@@ -2,7 +2,7 @@
 import glob
 import os
 import sys
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -39,40 +39,56 @@ def find_latest_csv_for_dataset(tag_prefix: str) -> str:
     return files[-1]
 
 
-def load_ensemble_row(csv_path: str) -> pd.Series:
+def load_csv(csv_path: str) -> pd.DataFrame:
     df = pd.read_csv(csv_path)
     if 'method' not in df.columns:
         raise ValueError(f"method column missing in {csv_path}")
-    row = df[df['method'] == 'Ensemble']
-    if row.empty:
-        raise ValueError(f"Ensemble row not found in {csv_path}")
-    return row.iloc[0]
+    return df
 
 
 def main(out_dir: str = "results_cross_dataset") -> None:
     os.makedirs(out_dir, exist_ok=True)
 
-    points: Dict[str, List[float]] = {metric_key: [] for metric_key, _, _, _ in METRICS}
+    # Collect per-dataset DataFrames
+    dataset_frames: List[Tuple[str, pd.DataFrame]] = []
     x_labels: List[str] = []
     missing: List[str] = []
-
     for tag, label in DATASET_ORDER:
         csv_path = find_latest_csv_for_dataset(tag)
         if not csv_path:
             missing.append(tag)
-            for mk in points:
-                points[mk].append(float('nan'))
             x_labels.append(label)
             continue
-        row = load_ensemble_row(csv_path)
+        df = load_csv(csv_path)
+        df = df.set_index('method')
+        dataset_frames.append((label, df))
         x_labels.append(label)
-        for mk, _, _, _ in METRICS:
-            val = row.get(mk)
-            points[mk].append(float(val) if pd.notna(val) else float('nan'))
 
-    # Plot each metric across datasets
+    # Default method set to plot (filter to those present across datasets)
+    candidate_methods = [
+        'ZKP Framework',
+        'Regex Baseline',
+        'LLM Simulator',
+        'Ensemble',
+        'Semantic Classifier',
+    ]
+    present_methods: List[str] = []
+    for m in candidate_methods:
+        if all((m in df.index) for _, df in dataset_frames):
+            present_methods.append(m)
+    if not present_methods and dataset_frames:
+        # fallback: union from first dataset
+        present_methods = [m for m in dataset_frames[0][1].index.tolist()]
+
+    # 1) Ensemble-only plots (preserve existing outputs for compatibility)
+    points_ensemble: Dict[str, List[float]] = {metric_key: [] for metric_key, _, _, _ in METRICS}
+    for label, df in dataset_frames:
+        row = df.loc['Ensemble'] if 'Ensemble' in df.index else None
+        for mk, _, _, _ in METRICS:
+            val = float(row.get(mk)) if row is not None and mk in row else float('nan')
+            points_ensemble[mk].append(val)
     for mk, mlabel, scale, is_pct in METRICS:
-        vals = points[mk]
+        vals = points_ensemble[mk]
         plot_vals = [v * scale if pd.notna(v) else float('nan') for v in vals]
         plt.figure(figsize=(8, 5))
         plt.plot(x_labels, plot_vals, marker='o', linewidth=2, color='#4F46E5')
@@ -88,6 +104,28 @@ def main(out_dir: str = "results_cross_dataset") -> None:
         plt.savefig(out_path, dpi=160)
         plt.close()
 
+    # 2) All-methods plots: one chart per metric with lines for each method
+    for mk, mlabel, scale, is_pct in METRICS:
+        plt.figure(figsize=(10, 6))
+        for method in present_methods:
+            series_vals: List[float] = []
+            for label, df in dataset_frames:
+                if method in df.index and mk in df.columns:
+                    val = float(df.loc[method][mk])
+                else:
+                    val = float('nan')
+                series_vals.append(val * scale if pd.notna(val) else float('nan'))
+            plt.plot(x_labels, series_vals, marker='o', linewidth=2, label=method)
+        plt.title(f"{mlabel} across datasets (all methods)")
+        plt.xlabel("Dataset size")
+        plt.ylabel(f"{mlabel}{' (%)' if is_pct else ''}")
+        plt.grid(True, linestyle='--', alpha=0.4)
+        plt.legend()
+        out_path = os.path.join(out_dir, f"all_methods_{mk}_across_datasets.png")
+        plt.tight_layout()
+        plt.savefig(out_path, dpi=160)
+        plt.close()
+
     # Combined dashboard (2x5)
     fig, axes = plt.subplots(2, 5, figsize=(22, 9))
     fig.suptitle('Cross-dataset metrics (Ensemble)', fontsize=16)
@@ -95,7 +133,7 @@ def main(out_dir: str = "results_cross_dataset") -> None:
         r = idx // 5
         c = idx % 5
         ax = axes[r][c]
-        vals = points[mk]
+        vals = points_ensemble[mk]
         plot_vals = [v * scale if pd.notna(v) else float('nan') for v in vals]
         ax.plot(x_labels, plot_vals, marker='o', linewidth=2, color='#0EA5E9')
         ax.set_title(mlabel)
