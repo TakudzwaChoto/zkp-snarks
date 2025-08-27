@@ -216,6 +216,44 @@ def main(out_dir: str = "results_cross_dataset") -> None:
             plt.savefig(outp, dpi=170)
             plt.close()
 
+    # 5) All-in-one grouped bar dashboard across datasets (percentage metrics)
+    pct_metrics = [(mk, mlabel, scale, is_pct) for mk, mlabel, scale, is_pct in METRICS if is_pct]
+    if dataset_frames and present_methods:
+        fig, axes = plt.subplots(2, 4, figsize=(22, 10))
+        fig.suptitle('Across datasets: percentage metrics (grouped bars with legend)', fontsize=16)
+        palette = ['#2563EB', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#14B8A6', '#F97316']
+        method_colors = {m: palette[i % len(palette)] for i, m in enumerate(present_methods)}
+        x = list(range(len(x_labels)))
+        total_width = 0.8
+        bar_width = total_width / max(1, len(present_methods))
+        for idx, (mk, mlabel, scale, is_pct) in enumerate(pct_metrics[:8]):
+            r = idx // 4
+            c = idx % 4
+            ax = axes[r][c]
+            # For each method, compute values across datasets
+            for mi, method in enumerate(present_methods):
+                vals = []
+                for _, df in dataset_frames:
+                    if method in df.index and mk in df.columns:
+                        v = float(df.loc[method][mk])
+                        vals.append(v * scale)
+                    else:
+                        vals.append(float('nan'))
+                offsets = [xi + (mi - len(present_methods)/2) * bar_width + bar_width/2 for xi in x]
+                ax.bar(offsets, vals, width=bar_width, color=method_colors[method], label=method if idx == 0 else None)
+            ax.set_title(mlabel)
+            ax.set_xticks(x)
+            ax.set_xticklabels(x_labels)
+            ax.set_ylim(0, 105)
+            ax.grid(True, linestyle='--', alpha=0.3)
+        # Shared legend
+        handles = [plt.Line2D([0], [0], marker='s', color=method_colors[m], markersize=10, linewidth=0) for m in present_methods]
+        fig.legend(handles, present_methods, title='Method', loc='upper center', ncol=min(6, len(present_methods)))
+        plt.tight_layout(rect=[0, 0.06, 1, 0.95])
+        outp = os.path.join(out_dir, 'across_datasets_grouped_bars_dashboard.png')
+        plt.savefig(outp, dpi=180)
+        plt.close(fig)
+
 
 if __name__ == "__main__":
     out = sys.argv[1] if len(sys.argv) > 1 else "results_cross_dataset"
