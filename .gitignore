@@ -72,4 +72,9 @@ tk.pub
 !results_comprehensive_by_size/*.csv
 !results_comprehensive_by_size/*.json
 !results_runs/*/*.csv
+
+# Allow current evaluation pipeline visualizations
+evaluation_results_*.png
+evaluation_metrics_*.csv
+detailed_results_*.csv
 !results_runs/*/*.png
