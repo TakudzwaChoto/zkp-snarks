@@ -266,10 +266,10 @@ def main(out_dir: str = "results_cross_dataset") -> None:
         else:
             thr_min, thr_max = (0.0, 1.0)
 
-        # Build metric spec including normalized latency/throughput
+        # Build metric spec including REAL latency (ms) and throughput (rpm) (not percentages)
         dashboard_specs = pct_metrics + [
-            ('latency_ms_norm_pct', 'Latency (normalized %)', 1.0, True),
-            ('throughput_rpm_norm_pct', 'Throughput (normalized %)', 1.0, True),
+            ('latency_ms', 'Latency (ms)', 1.0, False),
+            ('throughput_rpm', 'Throughput (rpm)', 1.0, False),
         ]
 
         fig, axes = plt.subplots(2, 5, figsize=(26, 10))
@@ -290,24 +290,16 @@ def main(out_dir: str = "results_cross_dataset") -> None:
                 for _, df in dataset_frames:
                     v_out = float('nan')
                     if method in df.index:
-                        if mk == 'latency_ms_norm_pct' and 'latency_ms' in df.columns and lat_max > lat_min:
+                        if mk == 'latency_ms' and 'latency_ms' in df.columns:
                             try:
                                 v = float(df.loc[method]['latency_ms'])
-                                # lower latency -> higher %
-                                if np.isfinite(v) and v >= 0:
-                                    v_out = (lat_max - v) / (lat_max - lat_min) * 100.0
-                                else:
-                                    v_out = float('nan')
+                                v_out = v if np.isfinite(v) and v >= 0 else float('nan')
                             except Exception:
                                 v_out = float('nan')
-                        elif mk == 'throughput_rpm_norm_pct' and 'throughput_rpm' in df.columns and thr_max > thr_min:
+                        elif mk == 'throughput_rpm' and 'throughput_rpm' in df.columns:
                             try:
                                 v = float(df.loc[method]['throughput_rpm'])
-                                # higher throughput -> higher %
-                                if np.isfinite(v) and v >= 0:
-                                    v_out = (v - thr_min) / (thr_max - thr_min) * 100.0
-                                else:
-                                    v_out = float('nan')
+                                v_out = v if np.isfinite(v) and v >= 0 else float('nan')
                             except Exception:
                                 v_out = float('nan')
                         elif mk in df.columns:
@@ -325,8 +317,8 @@ def main(out_dir: str = "results_cross_dataset") -> None:
             ax.set_xticklabels(x_labels)
             ax.set_ylim(0, 105)
             ax.grid(True, linestyle='--', alpha=0.35)
-            # y-axis and value labels with % for percentage/normalized metrics
-            if is_pct or mk.endswith('_norm_pct'):
+            # y-axis and value labels: % only for true percentage metrics
+            if is_pct:
                 ax.set_ylabel('%')
                 fmt = '%.0f%%'
             else:
