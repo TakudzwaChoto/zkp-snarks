@@ -155,21 +155,28 @@ def main(out_dir: str = "results_cross_dataset") -> None:
         fig, axes = plt.subplots(2, 5, figsize=(22, 9))
         fig.suptitle(f'Per-dataset metrics ({label}) - all methods', fontsize=16)
         methods = df.index.tolist()
+        palette = ['#2563EB', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#14B8A6', '#F97316']
+        color_map = {m: palette[i % len(palette)] for i, m in enumerate(methods)}
         for idx, (mk, mlabel, scale, is_pct) in enumerate(METRICS):
             r = idx // 5
             c = idx % 5
             ax = axes[r][c]
             vals = []
+            colors = []
             for m in methods:
                 val = float(df.loc[m][mk]) if mk in df.columns else float('nan')
                 vals.append(val * scale if pd.notna(val) else float('nan'))
-            ax.bar(methods, vals, color='#6366F1')
+                colors.append(color_map[m])
+            ax.bar(methods, vals, color=colors, alpha=0.9)
             ax.set_title(mlabel)
             ax.tick_params(axis='x', rotation=45)
             for i, v in enumerate(vals):
                 if pd.notna(v):
                     ax.text(i, v, f"{v:.2f}", ha='center', va='bottom', fontsize=8)
-        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+        # Shared legend for the whole figure
+        handles = [plt.Line2D([0], [0], marker='s', color=color_map[m], markersize=10, linewidth=0) for m in methods]
+        fig.legend(handles, methods, title='Method', loc='upper center', ncol=min(5, len(methods)))
+        plt.tight_layout(rect=[0, 0.08, 1, 0.95])
         outp = os.path.join(out_dir, f"per_dataset_{label}_all_methods_dashboard.png")
         plt.savefig(outp, dpi=180)
         plt.close(fig)
