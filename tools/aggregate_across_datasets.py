@@ -150,6 +150,30 @@ def main(out_dir: str = "results_cross_dataset") -> None:
         print("Missing datasets (no CSV found):", ", ".join(missing))
     print(f"Saved cross-dataset figures to: {out_dir}")
 
+    # 3) Per-dataset dashboards: bar charts for all methods within each dataset
+    for label, df in dataset_frames:
+        fig, axes = plt.subplots(2, 5, figsize=(22, 9))
+        fig.suptitle(f'Per-dataset metrics ({label}) - all methods', fontsize=16)
+        methods = df.index.tolist()
+        for idx, (mk, mlabel, scale, is_pct) in enumerate(METRICS):
+            r = idx // 5
+            c = idx % 5
+            ax = axes[r][c]
+            vals = []
+            for m in methods:
+                val = float(df.loc[m][mk]) if mk in df.columns else float('nan')
+                vals.append(val * scale if pd.notna(val) else float('nan'))
+            ax.bar(methods, vals, color='#6366F1')
+            ax.set_title(mlabel)
+            ax.tick_params(axis='x', rotation=45)
+            for i, v in enumerate(vals):
+                if pd.notna(v):
+                    ax.text(i, v, f"{v:.2f}", ha='center', va='bottom', fontsize=8)
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+        outp = os.path.join(out_dir, f"per_dataset_{label}_all_methods_dashboard.png")
+        plt.savefig(outp, dpi=180)
+        plt.close(fig)
+
 
 if __name__ == "__main__":
     out = sys.argv[1] if len(sys.argv) > 1 else "results_cross_dataset"
