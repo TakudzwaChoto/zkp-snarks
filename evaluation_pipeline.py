@@ -875,6 +875,23 @@ class AdvancedEvaluationPipeline:
                         f.write(f"{method},{prompt_escaped},{r.true_label},{r.predicted_label},{r.confidence},{r.detection_time},\"{json.dumps(r.metadata)}\"\n")
         else:
             metrics_df = pd.DataFrame(metrics).T
+            # Derive additional metrics required by reports
+            try:
+                # False Positive Rate
+                metrics_df['false_positive_rate'] = metrics_df.apply(
+                    lambda r: (r['false_positives'] / (r['false_positives'] + r['true_negatives'])) if (r['false_positives'] + r['true_negatives']) > 0 else 0.0,
+                    axis=1
+                )
+                # Tamper Resistance (treat as robustness to adversarial tampering) ≈ Recall/Sensitivity
+                # If a distinct definition is needed later, we can adjust here centrally.
+                metrics_df['tamper_resistance'] = metrics_df['recall']
+                # Latency in milliseconds
+                metrics_df['latency_ms'] = metrics_df['avg_detection_time'] * 1000.0
+                # Throughput in requests per minute
+                metrics_df['throughput_rpm'] = metrics_df['avg_detection_time'].apply(lambda t: (60.0 / t) if t and t > 0 else float('inf'))
+            except Exception:
+                # If any column is missing, proceed with available ones
+                pass
             metrics_df.index.name = 'method'
             metrics_df.to_csv(metrics_path)
             # Flatten results
