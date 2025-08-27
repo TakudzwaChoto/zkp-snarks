@@ -313,6 +313,12 @@ def main(out_dir: str = "results_cross_dataset") -> None:
         plt.tight_layout(rect=[0, 0.06, 1, 0.92])
         outp = os.path.join(out_dir, 'across_datasets_grouped_bars_dashboard.png')
         plt.savefig(outp, dpi=180)
+        # PDF export for publication
+        outp_pdf = os.path.join(out_dir, 'across_datasets_grouped_bars_dashboard.pdf')
+        try:
+            plt.savefig(outp_pdf)
+        except Exception:
+            pass
         plt.close(fig)
 
         # Separate grouped bars for throughput (rpm)
