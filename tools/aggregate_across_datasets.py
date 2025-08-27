@@ -177,23 +177,33 @@ def main(out_dir: str = "results_cross_dataset") -> None:
     # 4) Per-dataset per-metric charts: bar + marker for all methods
     for label, df in dataset_frames:
         methods = df.index.tolist()
+        palette = ['#2563EB', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#14B8A6', '#F97316']
+        color_map = {m: palette[i % len(palette)] for i, m in enumerate(methods)}
         for mk, mlabel, scale, is_pct in METRICS:
             vals = []
+            colors = []
             for m in methods:
                 val = float(df.loc[m][mk]) if mk in df.columns else float('nan')
                 vals.append(val * scale if pd.notna(val) else float('nan'))
+                colors.append(color_map[m])
             plt.figure(figsize=(10, 6))
-            # Bar plot
-            bars = plt.bar(methods, vals, color='#22C55E', alpha=0.7, label='bar')
-            # Marker overlay
-            plt.plot(methods, vals, linestyle='None', marker='D', markersize=8, color='#1D4ED8', label='marker')
+            # Bar plot with distinct colors per method
+            bars = plt.bar(methods, vals, color=colors, alpha=0.85)
+            # Marker overlay matching bar colors
+            for i, (m, v) in enumerate(zip(methods, vals)):
+                if pd.notna(v):
+                    plt.plot(i, v, linestyle='None', marker='D', markersize=7, color=color_map[m])
             plt.title(f'{mlabel} - {label} (all methods)')
             plt.ylabel(f"{mlabel}{' (%)' if is_pct else ''}")
             plt.xticks(rotation=45)
             plt.grid(True, linestyle='--', alpha=0.3)
+            # Value labels
             for i, v in enumerate(vals):
                 if pd.notna(v):
                     plt.text(i, v, f"{v:.2f}", ha='center', va='bottom', fontsize=8)
+            # Legend mapping colors to methods
+            handles = [plt.Line2D([0], [0], marker='s', color=color_map[m], markersize=10, linewidth=0) for m in methods]
+            plt.legend(handles, methods, title='Method', bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0.)
             outp = os.path.join(out_dir, f"per_dataset_{label}_{mk}_all_methods.png")
             plt.tight_layout()
             plt.savefig(outp, dpi=170)
