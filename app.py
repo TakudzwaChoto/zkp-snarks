@@ -18,6 +18,14 @@ from flask_limiter.util import get_remote_address
 import re
 from functools import wraps
 from datetime import datetime
+import base64, json, hashlib, sqlite3
+from datetime import timedelta
+try:
+	from nacl.signing import VerifyKey
+	from nacl.exceptions import BadSignatureError
+except Exception:
+	VerifyKey = None
+	BadSignatureError = Exception
 
 load_dotenv()
 
@@ -120,6 +128,134 @@ def login_required(role=None):
             return f(*args, **kwargs)
         return decorated_function
     return decorator
+
+# ---------------------- Multi-Sig Helpers ----------------------
+def _db():
+    return sqlite3.connect("llm_logs.db")
+
+def msig_canonical(op_row: dict) -> bytes:
+    data = {
+        "op_id": op_row["id"],
+        "op_type": op_row["op_type"],
+        "payload_hash": op_row["payload_hash"],
+        "created_at": op_row["created_at"],
+        "timelock_secs": op_row["timelock_secs"],
+    }
+    encoded = json.dumps(data, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    return hashlib.sha256(encoded).digest()
+
+def msig_verify(pub_b64: str, message: bytes, sig_b64: str) -> bool:
+    if VerifyKey is None:
+        return False
+    try:
+        VerifyKey(base64.b64decode(pub_b64)).verify(message, base64.b64decode(sig_b64))
+        return True
+    except BadSignatureError:
+        return False
+
+# ---------------------- Multi-Sig API ----------------------
+@app.route("/msig/keys", methods=["POST"])
+@login_required(role="admin")
+def msig_register_key():
+    signer = request.form.get("signer")
+    pub_b64 = request.form.get("pub_key_base64")
+    if not signer or not pub_b64:
+        return {"error": "signer and pub_key_base64 required"}, 400
+    now = datetime.utcnow().isoformat()
+    con = _db(); cur = con.cursor()
+    try:
+        cur.execute("INSERT OR REPLACE INTO msig_keys(signer, pub_key_base64, status, created_at) VALUES(?,?, 'active', ?)", (signer, pub_b64, now))
+        con.commit()
+        return {"ok": True}
+    finally:
+        con.close()
+
+@app.route("/msig/ops", methods=["POST"])
+@login_required(role="admin")
+def msig_create_op():
+    op_type = request.form.get("op_type")
+    payload = request.form.get("payload_json", "{}")
+    timelock_secs = request.form.get("timelock_secs", type=int) or 600
+    quorum_required = request.form.get("quorum_required", type=int) or 2
+    try:
+        json.loads(payload)
+    except Exception:
+        return {"error": "payload_json must be valid JSON"}, 400
+    phash = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    now = datetime.utcnow().isoformat()
+    con = _db(); cur = con.cursor()
+    cur.execute("INSERT INTO msig_ops(op_type, payload_json, payload_hash, status, timelock_secs, quorum_required, created_at) VALUES(?,?,?,?,?,?,?)",
+                (op_type, payload, phash, 'pending', timelock_secs, quorum_required, now))
+    op_id = cur.lastrowid
+    con.commit(); con.close()
+    return {"op_id": op_id, "payload_hash": phash, "created_at": now}
+
+@app.route("/msig/ops/<int:op_id>", methods=["GET"])
+@login_required(role="admin")
+def msig_get_op(op_id: int):
+    con = _db(); con.row_factory = sqlite3.Row; cur = con.cursor()
+    cur.execute("SELECT * FROM msig_ops WHERE id=?", (op_id,))
+    op = cur.fetchone()
+    if not op:
+        con.close(); return {"error": "not found"}, 404
+    cur.execute("SELECT signer, valid, reason, signed_at FROM msig_approvals WHERE op_id=?", (op_id,))
+    approvals = [dict(r) for r in cur.fetchall()]
+    con.close()
+    return {"op": dict(op), "approvals": approvals}
+
+@app.route("/msig/ops/<int:op_id>/approve", methods=["POST"])
+@login_required(role="admin")
+def msig_approve(op_id: int):
+    signer = request.form.get("signer")
+    sig_b64 = request.form.get("sig_base64")
+    if not signer or not sig_b64:
+        return {"error": "signer and sig_base64 required"}, 400
+    con = _db(); con.row_factory = sqlite3.Row; cur = con.cursor()
+    cur.execute("SELECT * FROM msig_ops WHERE id=?", (op_id,))
+    op = cur.fetchone()
+    if not op:
+        con.close(); return {"error": "op not found"}, 404
+    cur.execute("SELECT pub_key_base64, status FROM msig_keys WHERE signer=?", (signer,))
+    row = cur.fetchone()
+    if not row or row["status"] != 'active':
+        con.close(); return {"error": "unknown or inactive signer"}, 400
+    msg = msig_canonical(dict(op))
+    valid = 1 if msig_verify(row["pub_key_base64"], msg, sig_b64) else 0
+    reason = None if valid else "invalid signature"
+    now = datetime.utcnow().isoformat()
+    try:
+        cur.execute("INSERT OR REPLACE INTO msig_approvals(op_id, signer, sig_base64, signed_at, valid, reason) VALUES(?,?,?,?,?,?)",
+                    (op_id, signer, sig_b64, now, valid, reason))
+        # Re-check quorum
+        cur.execute("SELECT COUNT(1) FROM msig_approvals WHERE op_id=? AND valid=1", (op_id,))
+        valid_count = cur.fetchone()[0]
+        if valid_count >= op["quorum_required"] and op["status"] == 'pending':
+            quorum_met_at = datetime.utcnow()
+            execute_not_before = quorum_met_at + timedelta(seconds=op["timelock_secs"])
+            cur.execute("UPDATE msig_ops SET status='approved', quorum_met_at=?, execute_not_before=? WHERE id=?",
+                        (quorum_met_at.isoformat(), execute_not_before.isoformat(), op_id))
+        con.commit()
+    finally:
+        con.close()
+    return {"ok": True, "valid": bool(valid)}
+
+@app.route("/msig/ops/<int:op_id>/execute", methods=["POST"])
+@login_required(role="admin")
+def msig_execute(op_id: int):
+    con = _db(); con.row_factory = sqlite3.Row; cur = con.cursor()
+    cur.execute("SELECT * FROM msig_ops WHERE id=?", (op_id,))
+    op = cur.fetchone()
+    if not op:
+        con.close(); return {"error": "op not found"}, 404
+    if op["status"] != 'approved':
+        con.close(); return {"error": "quorum not met"}, 400
+    not_before = datetime.fromisoformat(op["execute_not_before"]) if op["execute_not_before"] else None
+    if not not_before or datetime.utcnow() < not_before:
+        con.close(); return {"error": "time-lock active"}, 400
+    # TODO: perform the high-risk action based on op_type/payload_json, idempotently.
+    cur.execute("UPDATE msig_ops SET status='executed' WHERE id=?", (op_id,))
+    con.commit(); con.close()
+    return {"ok": True}
 
 @app.route("/login", methods=["GET", "POST"])
 def login():

@@ -30,6 +30,51 @@ def init_db():
         )
         """
     )
+    # Multi-sig: registered public keys
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS msig_keys (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            signer TEXT UNIQUE NOT NULL,
+            pub_key_base64 TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'active',
+            created_at TEXT NOT NULL,
+            rotated_at TEXT
+        )
+        """
+    )
+    # Multi-sig: high-risk operations
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS msig_ops (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            op_type TEXT NOT NULL,
+            payload_json TEXT NOT NULL,
+            payload_hash TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            timelock_secs INTEGER NOT NULL DEFAULT 600,
+            quorum_required INTEGER NOT NULL DEFAULT 2,
+            created_at TEXT NOT NULL,
+            quorum_met_at TEXT,
+            execute_not_before TEXT
+        )
+        """
+    )
+    # Multi-sig: approvals per signer
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS msig_approvals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            op_id INTEGER NOT NULL,
+            signer TEXT NOT NULL,
+            sig_base64 TEXT NOT NULL,
+            signed_at TEXT NOT NULL,
+            valid INTEGER NOT NULL DEFAULT 0,
+            reason TEXT,
+            UNIQUE(op_id, signer)
+        )
+        """
+    )
     conn.commit()
     conn.close()
 
