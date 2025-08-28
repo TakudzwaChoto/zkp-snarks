@@ -1,9 +1,0 @@
-{
-  "collusion_detection_rate": 1.0,
-  "false_positive_rate": 0.0,
-  "tamper_resistance": 1.0,
-  "latency_ms": 15.11593127813865,
-  "throughput_rpm": 6622.498037800461,
-  "total_entries": 999,
-  "sample_size": 999
-}
