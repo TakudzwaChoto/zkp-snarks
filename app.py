@@ -578,6 +578,7 @@ def log_sign():
 		return {"error": str(e)}, 400
 
 @app.route("/test_zkp")
+@app.route("/zkp_test")
 @login_required(role="admin")
 def test_zkp():
     """Test ZKP functionality"""
