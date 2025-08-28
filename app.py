@@ -20,12 +20,8 @@ from functools import wraps
 from datetime import datetime
 import base64, json, hashlib, sqlite3
 from datetime import timedelta
-try:
-	from nacl.signing import VerifyKey
-	from nacl.exceptions import BadSignatureError
-except Exception:
-	VerifyKey = None
-	BadSignatureError = Exception
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+from cryptography.exceptions import InvalidSignature
 
 load_dotenv()
 
@@ -145,12 +141,11 @@ def msig_canonical(op_row: dict) -> bytes:
     return hashlib.sha256(encoded).digest()
 
 def msig_verify(pub_b64: str, message: bytes, sig_b64: str) -> bool:
-    if VerifyKey is None:
-        return False
     try:
-        VerifyKey(base64.b64decode(pub_b64)).verify(message, base64.b64decode(sig_b64))
+        pub = Ed25519PublicKey.from_public_bytes(base64.b64decode(pub_b64))
+        pub.verify(base64.b64decode(sig_b64), message)
         return True
-    except BadSignatureError:
+    except (InvalidSignature, ValueError):
         return False
 
 # ---------------------- Multi-Sig API ----------------------
