@@ -80,34 +80,8 @@ class PlotGenerator:
 
     @staticmethod
     def generate_all_plots(results: dict, output_dir: str):
-        """Generate all possible plots from results with enhanced styling"""
-        os.makedirs(output_dir, exist_ok=True)
-        
-        # Set up modern styling
-        PlotGenerator.setup_modern_style()
-
-        # 1. Performance Metrics Plot (Enhanced)
-        if 'metrics' in results:
-            PlotGenerator._plot_metrics_enhanced(results['metrics'], output_dir)
-
-        # 2. Confusion Matrix (Enhanced)
-        if 'confusion_matrix' in results:
-            cm = results['confusion_matrix']
-            if all(k in cm for k in ['y_true', 'y_pred', 'labels']):
-                PlotGenerator._plot_confusion_matrix_enhanced(
-                    cm['y_true'], cm['y_pred'], cm['labels'], output_dir)
-
-        # 3. Latency Plot (Enhanced)
-        if 'latency' in results:
-            PlotGenerator._plot_latency_enhanced(results['latency'], output_dir)
-            
-        # 4. New: Pie Chart for Method Distribution
-        if 'metrics' in results:
-            PlotGenerator._plot_method_distribution_pie(results['metrics'], output_dir)
-            
-        # 5. New: Line Chart for Performance Trends
-        if 'metrics' in results:
-            PlotGenerator._plot_performance_trends(results['metrics'], output_dir)
+        """Visual generation is disabled."""
+        return
 
     @staticmethod
     def _plot_metrics_enhanced(metrics: dict, output_dir: str):
@@ -500,12 +474,8 @@ def main():
         'latency': latency,
     }
 
-    # Generate plots
-    print("\n📊 Generating visualizations...")
-    try:
-        PlotGenerator.generate_all_plots(results, args.output)
-    except Exception as e:
-        print(f"⚠️ Skipping plot generation: {e}")
+    # Skip plot generation per request
+    print("\n📊 Skipping visualization generation (disabled by request)...")
 
     # Save results
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
