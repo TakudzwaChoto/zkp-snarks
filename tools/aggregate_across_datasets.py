@@ -20,6 +20,7 @@ DATASET_ORDER = [
 
 METRICS = [
     ("false_positive_rate", "False Positive Rate", 100.0, True),
+    ("false_negative_rate", "False Negative Rate", 100.0, True),
     ("tamper_resistance", "Tamper Resistance", 100.0, True),
     ("latency_ms", "Latency (ms)", 1.0, False),
     ("throughput_rpm", "Throughput (rpm)", 1.0, False),
@@ -169,15 +170,14 @@ def main(out_dir: str = "results_cross_dataset") -> None:
 
     # 3) Per-dataset dashboards: bar charts for all methods within each dataset
     for label, df in dataset_frames:
-        fig, axes = plt.subplots(2, 5, figsize=(22, 9))
+        fig, axes = plt.subplots(3, 4, figsize=(24, 15))
         fig.suptitle(f'Per-dataset metrics ({label}) - all methods', fontsize=16)
         methods = df.index.tolist()
         palette = ['#2563EB', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#14B8A6', '#F97316']
         color_map = {m: palette[i % len(palette)] for i, m in enumerate(methods)}
+        axes = axes.flatten()  # Flatten for easier indexing
         for idx, (mk, mlabel, scale, is_pct) in enumerate(METRICS):
-            r = idx // 5
-            c = idx % 5
-            ax = axes[r][c]
+            ax = axes[idx]
             vals = []
             colors = []
             for m in methods:
@@ -272,7 +272,8 @@ def main(out_dir: str = "results_cross_dataset") -> None:
             ('throughput_rpm', 'Throughput (rpm)', 1.0, False),
         ]
 
-        fig, axes = plt.subplots(2, 5, figsize=(26, 10))
+        fig, axes = plt.subplots(3, 4, figsize=(24, 15))
+        axes = axes.flatten()  # Flatten to 1D array for easier indexing
         fig.patch.set_facecolor('white')
         fig.suptitle('Across Datasets — Security Metrics (Grouped Bars)', fontsize=18, fontweight='bold')
         palette = ['#2563EB', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#14B8A6', '#F97316']
@@ -280,10 +281,8 @@ def main(out_dir: str = "results_cross_dataset") -> None:
         x = list(range(len(x_labels)))
         total_width = 0.8
         bar_width = total_width / max(1, len(present_methods))
-        for idx, (mk, mlabel, scale, is_pct) in enumerate(dashboard_specs[:10]):
-            r = idx // 5
-            c = idx % 5
-            ax = axes[r][c]
+        for idx, (mk, mlabel, scale, is_pct) in enumerate(dashboard_specs[:11]):
+            ax = axes[idx]
             # For each method, compute values across datasets
             for mi, method in enumerate(present_methods):
                 vals = []

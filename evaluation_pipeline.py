@@ -986,6 +986,11 @@ class AdvancedEvaluationPipeline:
                     lambda r: (r['false_positives'] / (r['false_positives'] + r['true_negatives'])) if (r['false_positives'] + r['true_negatives']) > 0 else 0.0,
                     axis=1
                 )
+                # False Negative Rate
+                metrics_df['false_negative_rate'] = metrics_df.apply(
+                    lambda r: (r['false_negatives'] / (r['false_negatives'] + r['true_positives'])) if (r['false_negatives'] + r['true_positives']) > 0 else 0.0,
+                    axis=1
+                )
                 # Tamper Resistance: if not already computed upstream, fall back to recall
                 if 'tamper_resistance' not in metrics_df.columns:
                     metrics_df['tamper_resistance'] = metrics_df['recall']
