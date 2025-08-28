@@ -144,21 +144,64 @@ def main(out_dir: str = "results_cross_dataset") -> None:
         plt.savefig(out_path, dpi=160)
         plt.close()
 
-    # Combined dashboard (3x4 for 11 metrics)
+    # Combined dashboard (3x4 for 11 metrics) - ALL METHODS with grouped bars
     fig, axes = plt.subplots(3, 4, figsize=(24, 15))
-    fig.suptitle('Cross-dataset metrics (Ensemble)', fontsize=16)
+    fig.suptitle('Cross-dataset metrics (All Methods)', fontsize=16)
     axes = axes.flatten()  # Flatten for easier indexing
+    
+    # Color palette for methods
+    palette = ['#2563EB', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#14B8A6', '#F97316']
+    method_colors = {m: palette[i % len(palette)] for i, m in enumerate(present_methods)}
+    
+    # Bar width calculation
+    x = list(range(len(x_labels)))
+    total_width = 0.8
+    bar_width = total_width / max(1, len(present_methods))
+    
     for idx, (mk, mlabel, scale, is_pct) in enumerate(METRICS):
         ax = axes[idx]
-        vals = points_ensemble[mk]
-        plot_vals = [v * scale if pd.notna(v) else float('nan') for v in vals]
-        ax.plot(x_labels, plot_vals, marker='o', linewidth=2, color='#0EA5E9')
-        ax.set_title(mlabel)
-        ax.grid(True, linestyle='--', alpha=0.4)
-        for x, y in zip(x_labels, plot_vals):
-            if pd.notna(y):
-                ax.text(x, y, f"{y:.2f}", ha='center', va='bottom', fontsize=8)
-    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+        
+        # For each method, get values across datasets
+        for mi, method in enumerate(present_methods):
+            vals = []
+            for _, df in dataset_frames:
+                if method in df.index and mk in df.columns:
+                    val = float(df.loc[method][mk])
+                    vals.append(val * scale if pd.notna(val) else float('nan'))
+                else:
+                    vals.append(float('nan'))
+            
+            # Calculate bar positions
+            offsets = [xi + (mi - len(present_methods)/2) * bar_width + bar_width/2 for xi in x]
+            ax.bar(offsets, vals, width=bar_width, color=method_colors[method], 
+                   label=method if idx == 0 else None, alpha=0.8)
+        
+        ax.set_title(mlabel, fontweight='bold')
+        ax.set_facecolor('white')
+        ax.set_xticks(x)
+        ax.set_xticklabels(x_labels)
+        ax.grid(True, linestyle='--', alpha=0.35)
+        
+        # Y-axis labels and formatting
+        if is_pct:
+            ax.set_ylabel('%')
+            fmt = '%.0f%%'
+        else:
+            fmt = '%.0f'
+        
+        # Value labels on bars
+        for container in ax.containers:
+            try:
+                ax.bar_label(container, fmt=fmt, padding=2, fontsize=8)
+            except Exception:
+                pass
+    
+    # Shared legend for all methods
+    handles = [plt.Line2D([0], [0], marker='s', color=method_colors[m], markersize=10, linewidth=0) 
+               for m in present_methods]
+    fig.legend(handles, present_methods, title='Method', loc='upper center', ncol=min(6, len(present_methods)))
+    
+    plt.tight_layout(rect=[0, 0.06, 1, 0.92])
     fig_path = os.path.join(out_dir, "cross_dataset_dashboard.png")
     plt.savefig(fig_path, dpi=180)
     plt.close(fig)
