@@ -144,13 +144,12 @@ def main(out_dir: str = "results_cross_dataset") -> None:
         plt.savefig(out_path, dpi=160)
         plt.close()
 
-    # Combined dashboard (2x5)
-    fig, axes = plt.subplots(2, 5, figsize=(22, 9))
+    # Combined dashboard (3x4 for 11 metrics)
+    fig, axes = plt.subplots(3, 4, figsize=(24, 15))
     fig.suptitle('Cross-dataset metrics (Ensemble)', fontsize=16)
+    axes = axes.flatten()  # Flatten for easier indexing
     for idx, (mk, mlabel, scale, is_pct) in enumerate(METRICS):
-        r = idx // 5
-        c = idx % 5
-        ax = axes[r][c]
+        ax = axes[idx]
         vals = points_ensemble[mk]
         plot_vals = [v * scale if pd.notna(v) else float('nan') for v in vals]
         ax.plot(x_labels, plot_vals, marker='o', linewidth=2, color='#0EA5E9')
