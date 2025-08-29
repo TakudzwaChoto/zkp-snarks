@@ -600,12 +600,12 @@ class AdvancedEvaluationPipeline:
             pass
         
         # Print comparison table
-        print(f"\n{'Method':<20} {'Precision':<10} {'Recall':<10} {'F1':<10} {'Accuracy':<10} {'Time(ms)':<10}")
-        print("-" * 80)
+        print(f"\n{'Method':<20} {'Precision':<10} {'Recall':<10} {'F1':<10} {'Accuracy':<10} {'Specificity':<10} {'Sensitivity':<10} {'Time(ms)':<10}")
+        print("-" * 100)
         
         for method_name, metric in metrics.items():
             print(f"{method_name:<20} {metric['precision']:<10.3f} {metric['recall']:<10.3f} "
-                  f"{metric['f1']:<10.3f} {metric['accuracy']:<10.3f} {metric['avg_detection_time']*1000:<10.1f}")
+                  f"{metric['f1']:<10.3f} {metric['accuracy']:<10.3f} {metric['specificity']:<10.3f} {metric['sensitivity']:<10.3f} {metric['avg_detection_time']*1000:<10.1f}")
         
         # Print detailed analysis
         print("\n" + "=" * 80)
@@ -620,6 +620,8 @@ class AdvancedEvaluationPipeline:
             print(f"  • True Negatives: {metric['true_negatives']}")
             print(f"  • False Positives: {metric['false_positives']}")
             print(f"  • False Negatives: {metric['false_negatives']}")
+            print(f"  • Specificity: {metric['specificity']:.3f}")
+            print(f"  • Sensitivity: {metric['sensitivity']:.3f}")
             print(f"  • Average Detection Time: {metric['avg_detection_time']*1000:.2f}ms")
             
             # Show example errors
