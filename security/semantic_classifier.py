@@ -14,6 +14,15 @@ except Exception:
     Pipeline = None
     classification_report = None
 
+import os
+import math
+import re
+from typing import Iterable
+try:
+    import numpy as np  # type: ignore
+except Exception:
+    np = None
+
 @dataclass
 class SemanticModel:
     pipeline: object
@@ -64,70 +73,97 @@ class SemanticModel:
 def train_semantic_model(pairs: List[Tuple[str, str]]) -> SemanticModel:
     texts = [p for p, _ in pairs]
     labels = [1 if y.lower() in ("adversarial", "attack", "malicious") else 0 for _, y in pairs]
-    if TfidfVectorizer is None or LogisticRegression is None or Pipeline is None:
-        # Fallback: train a simple Multinomial Naive Bayes in pure Python
-        def tokenize(s: str) -> List[str]:
+    if TfidfVectorizer is None or LogisticRegression is None or Pipeline is None or np is None:
+        # Fallback: hashed-char+word ngram logistic regression via SGD
+        dim = int(os.getenv('SEM_HASH_DIM', '131072'))
+        lr = float(os.getenv('SEM_LR', '0.1'))
+        l2 = float(os.getenv('SEM_L2', '1e-6'))
+        epochs = int(os.getenv('SEM_EPOCHS', '1'))
+        train_limit = int(os.getenv('SEM_TRAIN_LIMIT', str(len(texts))))
+
+        def word_ngrams(s: str) -> Iterable[str]:
+            toks = [t for t in re.split(r"[^a-z0-9]+", s.lower()) if t]
+            for t in toks:
+                yield t
+            for i in range(len(toks) - 1):
+                yield toks[i] + '_' + toks[i+1]
+
+        def char_ngrams(s: str, n_min: int = 3, n_max: int = 5) -> Iterable[str]:
             s = s.lower()
-            # basic split on non-word
-            return [tok for tok in re.split(r"[^a-z0-9_]+", s) if tok]
+            for n in range(n_min, n_max + 1):
+                for i in range(0, max(0, len(s) - n + 1)):
+                    yield '#' + s[i:i+n]
 
-        # Build counts
-        alpha = 1.0  # Laplace smoothing
-        vocab: Dict[str, int] = {}
-        class_token_counts = {0: 0, 1: 0}
-        token_class_counts: Dict[str, Dict[int, int]] = {}
-        class_doc_counts = {0: 0, 1: 0}
+        def featurize(text: str) -> List[Tuple[int, float]]:
+            counts: Dict[int, int] = {}
+            for token in word_ngrams(text):
+                idx = hash(token) % dim
+                counts[idx] = counts.get(idx, 0) + 1
+            for token in char_ngrams(text):
+                idx = hash(token) % dim
+                counts[idx] = counts.get(idx, 0) + 1
+            # L2-normalize
+            norm = math.sqrt(sum(v*v for v in counts.values())) or 1.0
+            return [(i, v / norm) for i, v in counts.items()]
 
-        for text, y in zip(texts, labels):
-            class_doc_counts[y] += 1
-            toks = tokenize(text)
-            for tok in toks:
-                vocab.setdefault(tok, 0)
-                vocab[tok] += 1
-                class_token_counts[y] += 1
-                if tok not in token_class_counts:
-                    token_class_counts[tok] = {0: 0, 1: 0}
-                token_class_counts[tok][y] += 1
+        w = np.zeros(dim, dtype=np.float32)
 
-        V = max(1, len(vocab))
-        total_docs = max(1, len(labels))
-        # class priors
-        prior = {c: (class_doc_counts[c] + alpha) / (total_docs + 2 * alpha) for c in (0, 1)}
+        def predict_proba_one(feats: List[Tuple[int, float]]) -> float:
+            z = 0.0
+            for i, v in feats:
+                z += float(w[i]) * v
+            # sigmoid
+            if z >= 0:
+                ez = math.exp(-z)
+                return 1.0 / (1.0 + ez)
+            else:
+                ez = math.exp(z)
+                return ez / (1.0 + ez)
 
-        def log_prob(text: str, c: int) -> float:
-            toks = tokenize(text)
-            logp = 0.0
-            # precompute denominators
-            denom = class_token_counts[c] + alpha * V
-            for tok in toks:
-                tc = token_class_counts.get(tok, {0: 0, 1: 0}).get(c, 0)
-                num = tc + alpha
-                logp += math.log(num / denom)
-            logp += math.log(prior[c])
-            return logp
+        # Train with SGD
+        n_train = min(train_limit, len(texts))
+        for _ in range(max(1, epochs)):
+            for i in range(n_train):
+                feats = featurize(texts[i])
+                y = labels[i]
+                p = predict_proba_one(feats)
+                g = (y - p)
+                # update
+                for j, v in feats:
+                    w[j] += lr * (g * v - l2 * float(w[j]))
 
-        class SimpleNB:
+        class HashingLogReg:
+            def __init__(self, w_arr, featurize_fn):
+                self.w = w_arr
+                self.featurize_fn = featurize_fn
             def predict(self, arr: List[str]) -> List[int]:
                 out: List[int] = []
                 for a in arr:
-                    lp1 = log_prob(a, 1)
-                    lp0 = log_prob(a, 0)
-                    out.append(1 if lp1 >= lp0 else 0)
+                    feats = self.featurize_fn(a)
+                    # proba
+                    z = 0.0
+                    for i, v in feats:
+                        z += float(self.w[i]) * v
+                    p = 1.0 / (1.0 + math.exp(-z)) if z >= 0 else math.exp(z) / (1.0 + math.exp(z))
+                    out.append(1 if p >= 0.5 else 0)
                 return out
             def predict_proba(self, arr: List[str]):
                 probs = []
                 for a in arr:
-                    lp1 = log_prob(a, 1)
-                    lp0 = log_prob(a, 0)
-                    m = max(lp0, lp1)
-                    p0 = math.exp(lp0 - m)
-                    p1 = math.exp(lp1 - m)
-                    z = p0 + p1
-                    probs.append([p0 / z, p1 / z])
+                    feats = self.featurize_fn(a)
+                    z = 0.0
+                    for i, v in feats:
+                        z += float(self.w[i]) * v
+                    if z >= 0:
+                        ez = math.exp(-z)
+                        p1 = 1.0 / (1.0 + ez)
+                    else:
+                        ez = math.exp(z)
+                        p1 = ez / (1.0 + ez)
+                    probs.append([1.0 - p1, p1])
                 return probs
 
-        import math, re  # local import for fallback
-        return SemanticModel(SimpleNB())
+        return SemanticModel(HashingLogReg(w, featurize))
     pipe = Pipeline([
         ("tfidf", TfidfVectorizer(ngram_range=(1,2), max_features=50000, min_df=2)),
         ("clf", LogisticRegression(max_iter=200))
