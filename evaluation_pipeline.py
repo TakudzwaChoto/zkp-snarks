@@ -416,7 +416,20 @@ class AdvancedEvaluationPipeline:
         llm_result = self.llm_simulator(prompt)
         
         # Weighted ensemble tuned for higher recall on paraphrase-heavy datasets
-        weights = {"ZKP": 0.2, "Regex": 0.3, "LLM": 0.5}
+        # Allow environment override for weights and threshold
+        try:
+            w_zkp = float(os.getenv('ENSEMBLE_W_ZKP', '0.2'))
+            w_regex = float(os.getenv('ENSEMBLE_W_REGEX', '0.3'))
+            w_llm = float(os.getenv('ENSEMBLE_W_LLM', '0.5'))
+            total_w = w_zkp + w_regex + w_llm
+            if total_w <= 0:
+                w_zkp, w_regex, w_llm = 0.2, 0.3, 0.5
+            else:
+                # normalize to sum 1.0 to keep confidence comparable
+                w_zkp, w_regex, w_llm = w_zkp/total_w, w_regex/total_w, w_llm/total_w
+        except Exception:
+            w_zkp, w_regex, w_llm = 0.2, 0.3, 0.5
+        weights = {"ZKP": w_zkp, "Regex": w_regex, "LLM": w_llm}
         
         zkp_score = 1 if zkp_result.predicted_label == "adversarial" else 0
         regex_score = 1 if regex_result.predicted_label == "adversarial" else 0
@@ -428,10 +441,14 @@ class AdvancedEvaluationPipeline:
         
         detection_time = time.time() - start_time
         
+        try:
+            thr = float(os.getenv('ENSEMBLE_THRESHOLD', '0.15'))
+        except Exception:
+            thr = 0.15
         return DetectionResult(
             prompt=prompt,
             true_label="",
-            predicted_label="adversarial" if ensemble_score >= 0.15 else "safe",
+            predicted_label="adversarial" if ensemble_score >= thr else "safe",
             confidence=ensemble_score,
             detection_time=detection_time,
             method="Ensemble",
@@ -439,7 +456,9 @@ class AdvancedEvaluationPipeline:
                 "zkp_score": zkp_score,
                 "regex_score": regex_score,
                 "llm_score": llm_score,
-                "ensemble_score": ensemble_score
+                "ensemble_score": ensemble_score,
+                "weights": weights,
+                "threshold": thr
             }
         )
     
