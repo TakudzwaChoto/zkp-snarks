@@ -22,6 +22,7 @@ try:
     import numpy as np  # type: ignore
 except Exception:
     np = None
+import json
 
 @dataclass
 class SemanticModel:
@@ -70,9 +71,65 @@ class SemanticModel:
         return out
 
 
+class PrebuiltLinearModel:
+    def __init__(self, bias: float, pos_weights: Dict[str, float], neg_weights: Dict[str, float]):
+        self.bias = float(bias)
+        self.pos = {k.lower(): float(v) for k, v in pos_weights.items()}
+        self.neg = {k.lower(): float(v) for k, v in neg_weights.items()}
+
+    def _score(self, text: str) -> float:
+        tl = text.lower()
+        z = self.bias
+        for k, w in self.pos.items():
+            if k in tl:
+                z += w
+        for k, w in self.neg.items():
+            if k in tl:
+                z += w
+        return z
+
+    def predict(self, arr: List[str]) -> List[int]:
+        out: List[int] = []
+        for a in arr:
+            z = self._score(a)
+            p1 = 1.0 / (1.0 + math.exp(-z)) if z >= 0 else math.exp(z) / (1.0 + math.exp(z))
+            out.append(1 if p1 >= 0.5 else 0)
+        return out
+
+    def predict_proba(self, arr: List[str]):
+        probs = []
+        for a in arr:
+            z = self._score(a)
+            if z >= 0:
+                ez = math.exp(-z)
+                p1 = 1.0 / (1.0 + ez)
+            else:
+                ez = math.exp(z)
+                p1 = ez / (1.0 + ez)
+            probs.append([1.0 - p1, p1])
+        return probs
+
+
+def load_prebuilt_semantic_model(path: str) -> SemanticModel:
+    with open(path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    bias = float(data.get('bias', 0.0))
+    pos = data.get('weights', {})
+    neg = data.get('neg_weights', {})
+    model = PrebuiltLinearModel(bias, pos, neg)
+    return SemanticModel(model)
+
+
 def train_semantic_model(pairs: List[Tuple[str, str]]) -> SemanticModel:
     texts = [p for p, _ in pairs]
     labels = [1 if y.lower() in ("adversarial", "attack", "malicious") else 0 for _, y in pairs]
+    # Prefer prebuilt model if available
+    pre_path = os.getenv('SEMANTIC_MODEL_PATH') or os.path.join(os.path.dirname(__file__), 'models', 'semantic_lr.json')
+    try:
+        if os.path.exists(pre_path):
+            return load_prebuilt_semantic_model(pre_path)
+    except Exception:
+        pass
     if TfidfVectorizer is None or LogisticRegression is None or Pipeline is None or np is None:
         # Fallback: hashed-char+word ngram logistic regression via SGD
         dim = int(os.getenv('SEM_HASH_DIM', '131072'))

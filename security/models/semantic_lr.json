@@ -1,0 +1,39 @@
+{
+  "bias": -1.2,
+  "weights": {
+    "ignore previous": 1.1,
+    "bypass": 1.0,
+    "system prompt": 1.1,
+    "admin": 0.7,
+    "password": 1.0,
+    "api key": 1.0,
+    "token": 0.8,
+    "reveal": 0.6,
+    "leak": 0.9,
+    "/etc/passwd": 1.2,
+    "eval(": 0.8,
+    "system(": 0.8,
+    "subprocess": 0.7,
+    "curl http": 0.6,
+    "wget http": 0.6,
+    "unrestricted": 0.8,
+    "unfiltered": 0.8,
+    "jailbreak": 0.9,
+    "root password": 1.1,
+    "disable logging": 0.6,
+    "disable security": 0.9,
+    "roleplay": 0.4,
+    "pretend you are": 0.7
+  },
+  "neg_weights": {
+    "what is": -0.6,
+    "how to": -0.5,
+    "explain": -0.4,
+    "define": -0.4,
+    "hello": -0.7,
+    "hi": -0.6,
+    "please": -0.2,
+    "thank you": -0.3
+  }
+}
+
