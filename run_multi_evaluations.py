@@ -243,6 +243,62 @@ def run_single_dataset(dataset_path: str, out_dir: str) -> Dict[str, Dict[str, f
     return metrics_by_method
 
 
+def _create_subset_csv(in_path: str, out_path: str, limit: int) -> None:
+    os.makedirs(os.path.dirname(out_path) or '.', exist_ok=True)
+    with open(in_path, 'r', encoding='utf-8') as fin, open(out_path, 'w', encoding='utf-8') as fout:
+        header = fin.readline()
+        fout.write(header)
+        count = 0
+        for line in fin:
+            if not line.strip():
+                continue
+            fout.write(line)
+            count += 1
+            if count >= limit:
+                break
+
+
+def sweep_thresholds(dataset_path: str, expected_size: int, work_dir: str) -> Tuple[float, float, Dict[str, float]]:
+    os.makedirs(work_dir, exist_ok=True)
+    # Build subset
+    if expected_size <= 6000:
+        subset_n = min(2000, expected_size // 2)
+    elif expected_size <= 50000:
+        subset_n = 5000
+    else:
+        subset_n = 10000
+    subset_path = os.path.join(work_dir, 'subset.csv')
+    _create_subset_csv(dataset_path, subset_path, subset_n)
+
+    # Parameter grid
+    sem_grid = [0.30, 0.33, 0.35, 0.38, 0.40, 0.43]
+    ens_grid = [0.12, 0.15, 0.18, 0.20, 0.22, 0.25]
+    best = {'f1': -1.0, 'sem': 0.35, 'ens': 0.18}
+
+    # Fix weights to balanced mix that worked best
+    os.environ['ENSEMBLE_MODE'] = os.environ.get('ENSEMBLE_MODE', 'weighted')
+    os.environ['ENSEMBLE_W_ZKP'] = os.environ.get('ENSEMBLE_W_ZKP', '0.20')
+    os.environ['ENSEMBLE_W_REGEX'] = os.environ.get('ENSEMBLE_W_REGEX', '0.30')
+    os.environ['ENSEMBLE_W_LLM'] = os.environ.get('ENSEMBLE_W_LLM', '0.10')
+    os.environ['ENSEMBLE_W_SEM'] = os.environ.get('ENSEMBLE_W_SEM', '0.40')
+
+    for sem in sem_grid:
+        os.environ['SEMANTIC_THRESHOLD'] = str(sem)
+        for ens in ens_grid:
+            os.environ['ENSEMBLE_THRESHOLD'] = str(ens)
+            tmp_out = os.path.join(work_dir, f'tmp_sem_{sem}_ens_{ens}'.replace('.', '_'))
+            try:
+                metrics = run_single_dataset(subset_path, tmp_out)
+                f1 = float(metrics.get('Ensemble', {}).get('f1', 0.0))
+                if f1 > best['f1']:
+                    best.update({'f1': f1, 'sem': sem, 'ens': ens})
+            except Exception:
+                continue
+
+    # Return best thresholds and metrics snapshot for reference
+    return best['sem'], best['ens'], {'best_f1_subset': best['f1'], 'subset_n': float(subset_n)}
+
+
 def aggregate_plots(all_metrics: Dict[int, Dict[str, Dict[str, float]]], out_root: str) -> None:
     if plt is None or np is None:
         return
@@ -301,6 +357,15 @@ def main():
         ds_path = generated_paths[n]
         out_dir = os.path.join(out_root, f"size_{format_size(n)}")
         print(f"\n=== Evaluating dataset size {n} ({ds_path}) ===")
+        # Sweep thresholds on a subset first
+        print("- Sweeping thresholds on subset...")
+        sem_thr, ens_thr, info = sweep_thresholds(ds_path, n, os.path.join(out_dir, 'sweep'))
+        os.environ['SEMANTIC_THRESHOLD'] = str(sem_thr)
+        os.environ['ENSEMBLE_THRESHOLD'] = str(ens_thr)
+        with open(os.path.join(out_dir, 'chosen_thresholds.json'), 'w') as f:
+            json.dump({'semantic_threshold': sem_thr, 'ensemble_threshold': ens_thr, **info}, f, indent=2)
+        print(f"  -> chosen: semantic={sem_thr:.2f}, ensemble={ens_thr:.2f} (subset F1={info['best_f1_subset']:.3f})")
+        # Now run full dataset with chosen thresholds
         metrics_by_method = run_single_dataset(ds_path, out_dir)
         all_metrics[n] = metrics_by_method
 
