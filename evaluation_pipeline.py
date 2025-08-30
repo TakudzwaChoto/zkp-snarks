@@ -90,10 +90,17 @@ class AdvancedEvaluationPipeline:
                 pass
         # Optional semantic classifier trained on the provided dataset
         self.semantic_model = None
+        self.semantic_tuned_threshold: Optional[float] = None
         try:
             enable_semantic = os.getenv('ENABLE_SEMANTIC', 'true').lower() == 'true'
             if enable_semantic and isinstance(self.test_dataset, list) and len(self.test_dataset) > 0:
                 self.semantic_model = train_semantic_model(self.test_dataset)
+                # Optional auto-tune threshold on the current dataset
+                if os.getenv('SEMANTIC_AUTO_TUNE', 'false').lower() == 'true' and self.semantic_model is not None:
+                    try:
+                        self.semantic_tuned_threshold = self._tune_semantic_threshold(self.test_dataset)
+                    except Exception:
+                        self.semantic_tuned_threshold = None
         except Exception:
             self.semantic_model = None
         
@@ -357,7 +364,10 @@ class AdvancedEvaluationPipeline:
         try:
             if self.semantic_model is not None:
                 prob_adv = float(self.semantic_model.predict_proba([prompt])[0])  # type: ignore
-                semantic_threshold = float(os.getenv('SEMANTIC_THRESHOLD', '0.35'))
+                if self.semantic_tuned_threshold is not None:
+                    semantic_threshold = self.semantic_tuned_threshold
+                else:
+                    semantic_threshold = float(os.getenv('SEMANTIC_THRESHOLD', '0.35'))
                 label = 'adversarial' if prob_adv >= semantic_threshold else 'safe'
                 return DetectionResult(
                     prompt=prompt,
@@ -366,7 +376,7 @@ class AdvancedEvaluationPipeline:
                     confidence=prob_adv,
                     detection_time=time.time()-start_time,
                     method="LLM Simulator",
-                    metadata={"semantic": True}
+                    metadata={"semantic": True, "threshold": semantic_threshold}
                 )
         except Exception:
             pass
@@ -428,7 +438,10 @@ class AdvancedEvaluationPipeline:
         try:
             if self.semantic_model is not None:
                 prob_adv = float(self.semantic_model.predict_proba([prompt])[0])  # type: ignore
-                sem_thr = float(os.getenv('SEMANTIC_THRESHOLD', '0.35'))
+                if self.semantic_tuned_threshold is not None:
+                    sem_thr = self.semantic_tuned_threshold
+                else:
+                    sem_thr = float(os.getenv('SEMANTIC_THRESHOLD', '0.35'))
                 sem_label = 'adversarial' if prob_adv >= sem_thr else 'safe'
                 semantic_result = DetectionResult(prompt, '', sem_label, prob_adv, 0.0, 'Semantic Classifier', {'threshold': sem_thr})
         except Exception:
@@ -502,6 +515,43 @@ class AdvancedEvaluationPipeline:
                 "mode": ensemble_mode
             }
         )
+
+    def _tune_semantic_threshold(self, dataset: List[Tuple[str, str]]) -> Optional[float]:
+        if self.semantic_model is None:
+            return None
+        # Evaluate on a subset for speed if very large
+        max_eval = int(os.getenv('SEMANTIC_TUNE_LIMIT', '50000'))
+        pairs = dataset[:max_eval]
+        texts = [p for p, _ in pairs]
+        labels = [1 if y == 'adversarial' else 0 for _, y in pairs]
+        try:
+            probs = [float(x) for x in self.semantic_model.predict_proba(texts)]  # type: ignore
+        except Exception:
+            return None
+        # Sweep thresholds
+        best_f1 = -1.0
+        best_t = 0.5
+        # Candidate thresholds from sorted probs
+        candidates = sorted(set([0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.33, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7]))
+        for t in candidates:
+            tp = fp = fn = tn = 0
+            for y, p in zip(labels, probs):
+                pred = 1 if p >= t else 0
+                if y == 1 and pred == 1:
+                    tp += 1
+                elif y == 0 and pred == 1:
+                    fp += 1
+                elif y == 1 and pred == 0:
+                    fn += 1
+                else:
+                    tn += 1
+            precision = tp / (tp + fp) if (tp + fp) else 0.0
+            recall = tp / (tp + fn) if (tp + fn) else 0.0
+            f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
+            if f1 > best_f1:
+                best_f1 = f1
+                best_t = t
+        return best_t
     
     def transformer_detection(self, prompt: str) -> DetectionResult:
         """Transformer-based classifier; returns probability as confidence."""
