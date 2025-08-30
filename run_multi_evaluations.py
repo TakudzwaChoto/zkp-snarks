@@ -104,23 +104,25 @@ def plot_metrics_grouped(metrics_by_method: Dict[str, Dict[str, float]], out_pat
     methods = list(metrics_by_method.keys())
     groups = ["accuracy", "precision", "recall", "f1"]
     x = np.arange(len(methods)) if np is not None else list(range(len(methods)))
-    width = 0.2
+    width = 0.18
     fig, ax = plt.subplots(figsize=(12, 7))
-    colors = ['#667eea', '#764ba2', '#43e97b', '#f5576c']
+    colors = ['#2F5597', '#9E480E', '#316395', '#4F81BD']
     for i, g in enumerate(groups):
-        vals = [metrics_by_method[m].get(g, 0.0) for m in methods]
+        vals = [metrics_by_method[m].get(g, 0.0) * 100.0 for m in methods]
         if np is None:
             xoff = [xi + (i - 1.5) * width for xi in x]
             ax.bar(xoff, vals, width=width, label=g.title(), color=colors[i], edgecolor='white', linewidth=1)
         else:
             ax.bar(x + (i - 1.5) * width, vals, width=width, label=g.title(), color=colors[i], edgecolor='white', linewidth=1)
     ax.set_title(title)
-    ax.set_ylabel('Score')
+    ax.set_ylabel('Score (%)')
     ax.set_xticks(x)
     ax.set_xticklabels(methods, rotation=20, ha='right')
-    ax.set_ylim(0, 1.05)
-    ax.legend(loc='upper left', frameon=True)
-    ax.grid(True, alpha=0.35, linestyle='--')
+    ax.set_ylim(0, 100)
+    ax.legend(loc='upper center', ncol=4, frameon=False)
+    ax.grid(axis='y', alpha=0.35, linestyle='--')
+    for spine in ['top', 'right']:
+        ax.spines[spine].set_visible(False)
     fig.tight_layout()
     fig.savefig(out_path, dpi=200, bbox_inches='tight', facecolor='white')
     plt.close(fig)
@@ -132,14 +134,17 @@ def plot_latency_bar(latency_by_method: Dict[str, float], out_path: str, title: 
     methods = list(latency_by_method.keys())
     values = [latency_by_method[m] * 1000.0 for m in methods]
     fig, ax = plt.subplots(figsize=(12, 6))
-    colors = ['#a8edea', '#fed6e3', '#ffecd2', '#fcb69f', '#fecfef']
-    bars = ax.bar(methods, values, color=colors[:len(methods)], edgecolor='white', linewidth=1)
+    colors = ['#4F81BD'] * len(methods)
+    bars = ax.bar(range(len(methods)), values, color=colors, edgecolor='black', linewidth=0.6)
     ax.set_title(title)
     ax.set_ylabel('Latency (ms)')
+    ax.set_xticks(range(len(methods)))
     ax.set_xticklabels(methods, rotation=20, ha='right')
     for bar, v in zip(bars, values):
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + max(values) * 0.01, f"{v:.1f}", ha='center', va='bottom')
-    ax.grid(True, alpha=0.35, linestyle='--')
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + (max(values) * 0.015 if max(values) else 1), f"{v:.1f}", ha='center', va='bottom')
+    ax.grid(axis='y', alpha=0.35, linestyle='--')
+    for spine in ['top', 'right']:
+        ax.spines[spine].set_visible(False)
     fig.tight_layout()
     fig.savefig(out_path, dpi=200, bbox_inches='tight', facecolor='white')
     plt.close(fig)
