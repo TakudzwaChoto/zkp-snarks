@@ -334,6 +334,43 @@ def aggregate_plots(all_metrics: Dict[int, Dict[str, Dict[str, float]]], out_roo
         plt.close(fig)
 
 
+def plot_per_size_bars(all_metrics: Dict[int, Dict[str, Dict[str, float]]], out_root: str, method: str = 'Ensemble') -> None:
+    if plt is None or np is None:
+        return
+    style_plots()
+    sizes = sorted(all_metrics.keys())
+    size_labels = [format_size(s) for s in sizes]
+    metrics_to_plot = [
+        ('accuracy', 'Accuracy (%)'),
+        ('precision', 'Precision (%)'),
+        ('recall', 'Recall (%)'),
+        ('f1', 'F1 (%)'),
+        ('latency_ms', 'Latency (ms)'),
+        ('tamper_resistance', 'Tamper Resistance (%)')
+    ]
+    for key, ylabel in metrics_to_plot:
+        values = []
+        for s in sizes:
+            val = all_metrics[s].get(method, {}).get(key, 0.0)
+            if key not in ('latency_ms', 'avg_detection_time'):
+                val = val * 100.0 if val <= 1.0 else val
+            values.append(val)
+        fig, ax = plt.subplots(figsize=(10, 6))
+        bars = ax.bar(range(len(sizes)), values, color='#4F81BD', edgecolor='black', linewidth=0.6)
+        ax.set_title(f'{ylabel.split(" (")[0]} by Dataset Size ({method})')
+        ax.set_ylabel(ylabel)
+        ax.set_xticks(range(len(sizes)))
+        ax.set_xticklabels(size_labels)
+        for bar, v in zip(bars, values):
+            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + (max(values) * 0.015 if max(values) else 1), f'{v:.1f}', ha='center', va='bottom')
+        ax.grid(axis='y', alpha=0.35, linestyle='--')
+        for spine in ['top', 'right']:
+            ax.spines[spine].set_visible(False)
+        fig.tight_layout()
+        fname = f'per_size_{key}_{method.replace(" ", "_")}.png'
+        fig.savefig(os.path.join(out_root, fname), dpi=200, bbox_inches='tight', facecolor='white')
+        plt.close(fig)
+
 def compute_and_save_layer_metrics(all_results: Dict[str, Dict[str, Dict[str, float]]], layers_path: str, out_root: str, size_tag: str) -> None:
     try:
         with open(layers_path, 'r', encoding='utf-8') as f:
@@ -442,6 +479,11 @@ def main():
 
     # Aggregated visuals across sizes
     aggregate_plots(all_metrics, out_root)
+    # Per size bars (by dataset size for a given method)
+    try:
+        plot_per_size_bars(all_metrics, out_root, method='Ensemble')
+    except Exception:
+        pass
     print(f"\n✅ Multi-dataset evaluation complete. Results at: {out_root}")
 
 
