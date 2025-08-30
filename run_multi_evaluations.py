@@ -1,0 +1,328 @@
+#!/usr/bin/env python3
+"""
+Multi-dataset evaluation runner
+
+Runs AdvancedEvaluationPipeline on datasets of sizes 4k, 6k, 50k, 120k, 200k.
+Computes and saves metrics: accuracy, precision, recall, f1, latency, tamper_resistance,
+"detection_rate" (alias of recall), TP, TN, FP, FN. Exports confusion matrices and
+distribution plots with clear, non-overlapping styling. Also generates aggregated
+visuals across sizes.
+"""
+
+import os
+import sys
+import csv
+import json
+import time
+from typing import Dict, List, Tuple
+
+try:
+    import numpy as np  # type: ignore
+except Exception:
+    np = None
+
+try:
+    import matplotlib.pyplot as plt  # type: ignore
+except Exception:
+    plt = None
+
+from datetime import datetime
+
+from evaluation_pipeline import AdvancedEvaluationPipeline, DetectionResult
+
+
+DATASET_SIZES = [4000, 6000, 50000, 120000, 200000]
+
+
+def ensure_dirs(path: str) -> None:
+    os.makedirs(path, exist_ok=True)
+
+
+def format_size(n: int) -> str:
+    if n >= 1000:
+        return f"{n//1000}k"
+    return str(n)
+
+
+def compute_confusion(y_true: List[int], y_pred: List[int]) -> Tuple[int, int, int, int]:
+    tn = sum(1 for yt, yp in zip(y_true, y_pred) if yt == 0 and yp == 0)
+    fp = sum(1 for yt, yp in zip(y_true, y_pred) if yt == 0 and yp == 1)
+    fn = sum(1 for yt, yp in zip(y_true, y_pred) if yt == 1 and yp == 0)
+    tp = sum(1 for yt, yp in zip(y_true, y_pred) if yt == 1 and yp == 1)
+    return tp, tn, fp, fn
+
+
+def derive_metrics(results: List[DetectionResult]) -> Dict[str, float]:
+    y_true = [1 if r.true_label == "adversarial" else 0 for r in results]
+    y_pred = [1 if r.predicted_label == "adversarial" else 0 for r in results]
+    tp, tn, fp, fn = compute_confusion(y_true, y_pred)
+    total = max(1, len(results))
+    precision = (tp / (tp + fp)) if (tp + fp) > 0 else 0.0
+    recall = (tp / (tp + fn)) if (tp + fn) > 0 else 0.0
+    f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) > 0 else 0.0
+    accuracy = (tp + tn) / total
+    if np is None:
+        avg_detection_time = sum(r.detection_time for r in results) / total
+    else:
+        avg_detection_time = float(np.mean([r.detection_time for r in results]))
+    return {
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+        "accuracy": accuracy,
+        "avg_detection_time": avg_detection_time,
+        "true_positives": tp,
+        "true_negatives": tn,
+        "false_positives": fp,
+        "false_negatives": fn,
+        # detection_rate: treat as recall (malicious detection rate)
+        "detection_rate": recall,
+    }
+
+
+def style_plots():
+    if plt is None:
+        return
+    plt.style.use('default')
+    # emulate a light grid style
+    plt.rcParams.update({
+        'axes.facecolor': '#f8f9fa',
+        'axes.edgecolor': '#dadee4',
+        'grid.color': '#e9ecef',
+        'grid.linestyle': '--',
+        'grid.alpha': 0.55,
+    })
+    plt.rcParams['font.size'] = 10
+    plt.rcParams['axes.titlesize'] = 14
+    plt.rcParams['axes.labelsize'] = 12
+    plt.rcParams['legend.fontsize'] = 10
+
+
+def plot_metrics_grouped(metrics_by_method: Dict[str, Dict[str, float]], out_path: str, title: str) -> None:
+    if plt is None:
+        return
+    methods = list(metrics_by_method.keys())
+    groups = ["accuracy", "precision", "recall", "f1"]
+    x = np.arange(len(methods)) if np is not None else list(range(len(methods)))
+    width = 0.2
+    fig, ax = plt.subplots(figsize=(12, 7))
+    colors = ['#667eea', '#764ba2', '#43e97b', '#f5576c']
+    for i, g in enumerate(groups):
+        vals = [metrics_by_method[m].get(g, 0.0) for m in methods]
+        if np is None:
+            xoff = [xi + (i - 1.5) * width for xi in x]
+            ax.bar(xoff, vals, width=width, label=g.title(), color=colors[i], edgecolor='white', linewidth=1)
+        else:
+            ax.bar(x + (i - 1.5) * width, vals, width=width, label=g.title(), color=colors[i], edgecolor='white', linewidth=1)
+    ax.set_title(title)
+    ax.set_ylabel('Score')
+    ax.set_xticks(x)
+    ax.set_xticklabels(methods, rotation=20, ha='right')
+    ax.set_ylim(0, 1.05)
+    ax.legend(loc='upper left', frameon=True)
+    ax.grid(True, alpha=0.35, linestyle='--')
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=200, bbox_inches='tight', facecolor='white')
+    plt.close(fig)
+
+
+def plot_latency_bar(latency_by_method: Dict[str, float], out_path: str, title: str) -> None:
+    if plt is None:
+        return
+    methods = list(latency_by_method.keys())
+    values = [latency_by_method[m] * 1000.0 for m in methods]
+    fig, ax = plt.subplots(figsize=(12, 6))
+    colors = ['#a8edea', '#fed6e3', '#ffecd2', '#fcb69f', '#fecfef']
+    bars = ax.bar(methods, values, color=colors[:len(methods)], edgecolor='white', linewidth=1)
+    ax.set_title(title)
+    ax.set_ylabel('Latency (ms)')
+    ax.set_xticklabels(methods, rotation=20, ha='right')
+    for bar, v in zip(bars, values):
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + max(values) * 0.01, f"{v:.1f}", ha='center', va='bottom')
+    ax.grid(True, alpha=0.35, linestyle='--')
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=200, bbox_inches='tight', facecolor='white')
+    plt.close(fig)
+
+
+def plot_confusion_matrix(tp: int, tn: int, fp: int, fn: int, out_path: str, title: str) -> None:
+    if plt is None:
+        return
+    import numpy as _np
+    cm = _np.array([[tn, fp], [fn, tp]], dtype=float)
+    fig, ax = plt.subplots(figsize=(7, 6))
+    im = ax.imshow(cm, cmap='RdYlBu_r')
+    ax.set_title(title)
+    ax.set_xlabel('Predicted (0=benign, 1=adversarial)')
+    ax.set_ylabel('Actual (0=benign, 1=adversarial)')
+    # Add counts
+    for i in range(2):
+        for j in range(2):
+            ax.text(j, i, f"{int(cm[i, j])}", ha='center', va='center', color='black')
+    cbar = fig.colorbar(im, ax=ax)
+    cbar.set_label('Count')
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=200, bbox_inches='tight', facecolor='white')
+    plt.close(fig)
+
+
+def plot_outcome_distribution(tp: int, tn: int, fp: int, fn: int, out_path: str, title: str) -> None:
+    if plt is None:
+        return
+    labels = ['TP', 'TN', 'FP', 'FN']
+    values = [tp, tn, fp, fn]
+    colors = ['#43e97b', '#667eea', '#f093fb', '#f5576c']
+    fig, ax = plt.subplots(figsize=(8, 6))
+    bars = ax.bar(labels, values, color=colors, edgecolor='white', linewidth=1)
+    ax.set_title(title)
+    ax.set_ylabel('Count')
+    for bar, v in zip(bars, values):
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + max(values) * 0.01, f"{v}", ha='center', va='bottom')
+    ax.grid(True, axis='y', alpha=0.35, linestyle='--')
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=200, bbox_inches='tight', facecolor='white')
+    plt.close(fig)
+
+
+def run_single_dataset(dataset_path: str, out_dir: str) -> Dict[str, Dict[str, float]]:
+    ensure_dirs(out_dir)
+    pipeline = AdvancedEvaluationPipeline(dataset_path)
+    # Configure optional parallel workers via env var
+    all_results = pipeline.run_evaluation()
+    metrics_by_method: Dict[str, Dict[str, float]] = {}
+    for method, results in all_results.items():
+        metrics = pipeline.calculate_metrics(results)
+        # add detection_rate alias and latency_ms
+        metrics['detection_rate'] = metrics.get('recall', 0.0)
+        metrics['latency_ms'] = metrics.get('avg_detection_time', 0.0) * 1000.0
+        metrics_by_method[method] = metrics
+    # Tamper resistance per method (uses adversarial perturbations, capped internally)
+    try:
+        tr_targets = {
+            'ZKP Framework': pipeline.zkp_detection,
+            'Regex Baseline': pipeline.regex_baseline,
+            'LLM Simulator': pipeline.llm_simulator,
+            'Ensemble': pipeline.ensemble_detection,
+        }
+        for m_name, fn in tr_targets.items():
+            if m_name in metrics_by_method:
+                tr_score = pipeline._compute_tamper_resistance(m_name, fn, pipeline.test_dataset, k_variants=1)
+                metrics_by_method[m_name]['tamper_resistance'] = tr_score
+    except Exception:
+        pass
+
+    # Save per-dataset metrics CSV
+    csv_path = os.path.join(out_dir, 'metrics.csv')
+    with open(csv_path, 'w', newline='') as f:
+        writer = csv.writer(f)
+        methods = list(metrics_by_method.keys())
+        writer.writerow(['Metric'] + methods)
+        wanted = ['accuracy', 'precision', 'recall', 'f1', 'latency_ms', 'tamper_resistance', 'detection_rate', 'true_positives', 'true_negatives', 'false_positives', 'false_negatives']
+        for metric in wanted:
+            row = [metric]
+            for m in methods:
+                row.append(metrics_by_method[m].get(metric, 0))
+            writer.writerow(row)
+
+    # Plots per dataset
+    style_plots()
+    if plt is not None:
+        plot_metrics_grouped(metrics_by_method, os.path.join(out_dir, 'metrics_grouped.png'), title='Metrics by Method')
+        plot_latency_bar({m: d.get('avg_detection_time', 0.0) for m, d in metrics_by_method.items()}, os.path.join(out_dir, 'latency.png'), title='Latency by Method')
+        # Confusion matrix and distribution for Ensemble (primary) and ZKP
+        for key in ['Ensemble', 'ZKP Framework']:
+            if key in all_results:
+                # derive confusion
+                m = metrics_by_method.get(key, {})
+                tp = int(m.get('true_positives', 0))
+                tn = int(m.get('true_negatives', 0))
+                fp = int(m.get('false_positives', 0))
+                fn = int(m.get('false_negatives', 0))
+                plot_confusion_matrix(tp, tn, fp, fn, os.path.join(out_dir, f'confusion_{key.replace(" ", "_")}.png'), title=f'Confusion Matrix - {key}')
+                plot_outcome_distribution(tp, tn, fp, fn, os.path.join(out_dir, f'distribution_{key.replace(" ", "_")}.png'), title=f'Outcome Distribution - {key}')
+    return metrics_by_method
+
+
+def aggregate_plots(all_metrics: Dict[int, Dict[str, Dict[str, float]]], out_root: str) -> None:
+    if plt is None or np is None:
+        return
+    style_plots()
+    methods = set()
+    for _, m in all_metrics.items():
+        methods.update(m.keys())
+    methods = sorted(list(methods))
+    sizes = sorted(all_metrics.keys())
+
+    # For each metric, line plot vs dataset size
+    metric_names = ['accuracy', 'precision', 'recall', 'f1', 'latency_ms', 'tamper_resistance']
+    for met in metric_names:
+        fig, ax = plt.subplots(figsize=(12, 7))
+        for method in methods:
+            yvals = []
+            for s in sizes:
+                val = all_metrics[s].get(method, {}).get(met, np.nan)
+                yvals.append(val)
+            ax.plot([format_size(s) for s in sizes], yvals, marker='o', linewidth=2.5, label=method)
+        ax.set_title(f'{met.replace("_", " ").title()} vs Dataset Size')
+        ax.set_xlabel('Dataset Size')
+        ax.set_ylabel(met.replace('_', ' ').title())
+        ax.grid(True, alpha=0.35, linestyle='--')
+        ax.legend(loc='best')
+        fig.tight_layout()
+        fig.savefig(os.path.join(out_root, f'aggregate_{met}.png'), dpi=200, bbox_inches='tight', facecolor='white')
+        plt.close(fig)
+
+
+def main():
+    out_root = os.path.abspath('results_multi')
+    ensure_dirs(out_root)
+    # Optionally set workers if provided
+    os.environ.setdefault('EVAL_WORKERS', os.environ.get('EVAL_WORKERS', '4'))
+
+    # Generate datasets if missing
+    generated_paths: Dict[int, str] = {}
+    for n in DATASET_SIZES:
+        half = n // 2
+        name = f"data/{format_size(n)}data.csv"
+        abspath = os.path.abspath(name)
+        if not os.path.exists(abspath):
+            # lazily generate via CLI to avoid import coupling
+            cmd = f"python3 data/generate_dataset.py -b {half} -a {n - half} --format csv --out {name}"
+            print(f"Generating dataset {n} via: {cmd}")
+            code = os.system(cmd)
+            if code != 0 or not os.path.exists(abspath):
+                print(f"Failed to generate {name}")
+                sys.exit(1)
+        generated_paths[n] = abspath
+
+    # Run evaluations
+    all_metrics: Dict[int, Dict[str, Dict[str, float]]] = {}
+    for n in DATASET_SIZES:
+        ds_path = generated_paths[n]
+        out_dir = os.path.join(out_root, f"size_{format_size(n)}")
+        print(f"\n=== Evaluating dataset size {n} ({ds_path}) ===")
+        metrics_by_method = run_single_dataset(ds_path, out_dir)
+        all_metrics[n] = metrics_by_method
+
+    # Save combined CSV
+    combined_csv = os.path.join(out_root, 'combined_metrics.csv')
+    with open(combined_csv, 'w', newline='') as f:
+        writer = csv.writer(f)
+        # header: size, method, metrics...
+        headers = ['size', 'method', 'accuracy', 'precision', 'recall', 'f1', 'latency_ms', 'tamper_resistance', 'detection_rate', 'true_positives', 'true_negatives', 'false_positives', 'false_negatives']
+        writer.writerow(headers)
+        for n in DATASET_SIZES:
+            for method, data in all_metrics[n].items():
+                row = [n, method]
+                for key in headers[2:]:
+                    row.append(data.get(key, 0))
+                writer.writerow(row)
+
+    # Aggregated visuals across sizes
+    aggregate_plots(all_metrics, out_root)
+    print(f"\n✅ Multi-dataset evaluation complete. Results at: {out_root}")
+
+
+if __name__ == '__main__':
+    main()
+
