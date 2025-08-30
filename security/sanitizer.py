@@ -298,11 +298,7 @@ def sanitize_prompt(prompt: str) -> Tuple[str, bool, List[str]]:
     
     normalized = normalize_prompt(prompt)
     
-    # FIRST: Check for adversarial content (this takes priority)
-    if _is_adversarial_prompt(prompt):
-        return normalized, True, ["adversarial_pattern_detected"]
-    
-    # SECOND: Check if it's a benign prompt that should always be allowed
+    # FIRST: Check if it's a benign prompt that should always be allowed
     if _is_benign_greeting(prompt):
         return normalized, False, []
     
@@ -311,6 +307,10 @@ def sanitize_prompt(prompt: str) -> Tuple[str, bool, List[str]]:
     
     if _is_benign_conversation(prompt):
         return normalized, False, []
+    
+    # SECOND: Check for adversarial content
+    if _is_adversarial_prompt(prompt):
+        return normalized, True, ["adversarial_pattern_detected"]
     
     # If we get here, it's a normal prompt that should be allowed
     return normalized, False, []

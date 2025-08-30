@@ -423,39 +423,60 @@ class AdvancedEvaluationPipeline:
         zkp_result = self.zkp_detection(prompt)
         regex_result = self.regex_baseline(prompt)
         llm_result = self.llm_simulator(prompt)
+        # Optional semantic model as a separate vote if available
+        semantic_result = None
+        try:
+            if self.semantic_model is not None:
+                prob_adv = float(self.semantic_model.predict_proba([prompt])[0])  # type: ignore
+                sem_thr = float(os.getenv('SEMANTIC_THRESHOLD', '0.35'))
+                sem_label = 'adversarial' if prob_adv >= sem_thr else 'safe'
+                semantic_result = DetectionResult(prompt, '', sem_label, prob_adv, 0.0, 'Semantic Classifier', {'threshold': sem_thr})
+        except Exception:
+            semantic_result = None
         
         # Weighted ensemble tuned for higher recall on paraphrase-heavy datasets
         # Allow environment override for weights and threshold
         try:
-            w_zkp = float(os.getenv('ENSEMBLE_W_ZKP', '0.2'))
-            w_regex = float(os.getenv('ENSEMBLE_W_REGEX', '0.3'))
-            w_llm = float(os.getenv('ENSEMBLE_W_LLM', '0.5'))
+            w_zkp = float(os.getenv('ENSEMBLE_W_ZKP', '0.25'))
+            w_regex = float(os.getenv('ENSEMBLE_W_REGEX', '0.30'))
+            w_llm = float(os.getenv('ENSEMBLE_W_LLM', '0.15'))
+            w_sem = float(os.getenv('ENSEMBLE_W_SEM', '0.30')) if semantic_result is not None else 0.0
             total_w = w_zkp + w_regex + w_llm
+            total_w += w_sem
             if total_w <= 0:
-                w_zkp, w_regex, w_llm = 0.2, 0.3, 0.5
+                w_zkp, w_regex, w_llm, w_sem = 0.25, 0.30, 0.15, (0.30 if semantic_result is not None else 0.0)
             else:
                 # normalize to sum 1.0 to keep confidence comparable
                 w_zkp, w_regex, w_llm = w_zkp/total_w, w_regex/total_w, w_llm/total_w
+                w_sem = (w_sem/total_w) if semantic_result is not None else 0.0
         except Exception:
-            w_zkp, w_regex, w_llm = 0.2, 0.3, 0.5
+            w_zkp, w_regex, w_llm, w_sem = 0.25, 0.30, 0.15, (0.30 if semantic_result is not None else 0.0)
         weights = {"ZKP": w_zkp, "Regex": w_regex, "LLM": w_llm}
+        if semantic_result is not None:
+            weights["SEM"] = w_sem
         
         zkp_score = 1 if zkp_result.predicted_label == "adversarial" else 0
         regex_score = 1 if regex_result.predicted_label == "adversarial" else 0
         llm_score = 1 if llm_result.predicted_label == "adversarial" else 0
+        sem_score = 1 if (semantic_result and semantic_result.predicted_label == "adversarial") else 0
         
         ensemble_mode = os.getenv('ENSEMBLE_MODE', 'weighted').strip().lower()
         if ensemble_mode == 'majority':
-            votes = zkp_score + regex_score + llm_score
-            ensemble_score = votes / 3.0
+            votes = zkp_score + regex_score + llm_score + (sem_score if semantic_result is not None else 0)
+            denom = 4.0 if semantic_result is not None else 3.0
+            ensemble_score = votes / denom
         elif ensemble_mode in ('logic', 'zkp_or_combo'):
             # ZKP OR (Regex AND LLM)
-            decision = 1 if (zkp_score == 1 or (regex_score == 1 and llm_score == 1)) else 0
+            base = (zkp_score == 1 or (regex_score == 1 and llm_score == 1))
+            if semantic_result is not None:
+                base = base or (sem_score == 1 and (regex_score == 1 or zkp_score == 1))
+            decision = 1 if base else 0
             ensemble_score = float(decision)
         else:
             ensemble_score = (zkp_score * weights["ZKP"] + 
                              regex_score * weights["Regex"] + 
-                             llm_score * weights["LLM"])
+                             llm_score * weights["LLM"] +
+                             (sem_score * weights.get("SEM", 0.0)))
         
         detection_time = time.time() - start_time
         
@@ -474,6 +495,7 @@ class AdvancedEvaluationPipeline:
                 "zkp_score": zkp_score,
                 "regex_score": regex_score,
                 "llm_score": llm_score,
+                "sem_score": sem_score if semantic_result is not None else None,
                 "ensemble_score": ensemble_score,
                 "weights": weights,
                 "threshold": thr,
