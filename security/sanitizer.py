@@ -167,8 +167,8 @@ def _is_adversarial_prompt(prompt: str) -> bool:
         # Indirect prompt injection
         r"repeat\s+this\s+prompt", r"copy\s+this\s+prompt", r"print\s+the\s+previous\s+instructions",
         
-        # Unicode homoglyphs (e.g., Cyrillic a, Greek o)
-        r"[а-яА-ЯёЁ]+", r"[α-ωΑ-Ω]+",
+        # NOTE: Unicode script presence alone is no longer considered high-risk
+        # to reduce false positives on benign multilingual prompts.
         
         # Multilingual adversarial patterns
         r"ignorez\s+.*?instructions?", r"négligez\s+.*?instructions?", r"contournez\s+.*?instructions?",

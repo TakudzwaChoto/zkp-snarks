@@ -319,12 +319,21 @@ class AdvancedEvaluationPipeline:
         """Simple regex-based detection (normalized + extended patterns)"""
         start_time = time.time()
         normalized, triggered, matched = sanitize_prompt(prompt)
-        # additional lightweight patterns not in sanitizer
+        # additional lightweight patterns not in sanitizer (broaden coverage)
         extra_patterns = [
+            r"ignore\s+(all\s+)?(previous\s+)?(instructions?|rules?)",
+            r"bypass\s+(safety|security|rules|filters?)",
+            r"system\s+prompt",
+            r"show\s+(me\s+)?(the\s+)?(password|api\s*key|token|secret)",
+            r"leak\s+(data|secrets?)",
             r"root\s+password",
-            r"disable\s+logging",
-            r"leak\s+secrets",
-            r"no\s+restrictions?",
+            r"disable\s+(logging|security|safety|moderation)",
+            r"no\s*restrictions?",
+            r"unrestricted|unfiltered|jailbreak",
+            r"/etc/passwd|/etc/shadow",
+            r"curl\s+https?://|wget\s+https?://",
+            r"eval\s*\(|system\s*\(|os\.system|subprocess",
+            r"roleplay|pretend\s+you\s+are\s+(admin|root|hacker)",
         ]
         for pat in extra_patterns:
             if re.search(pat, normalized):
@@ -435,9 +444,18 @@ class AdvancedEvaluationPipeline:
         regex_score = 1 if regex_result.predicted_label == "adversarial" else 0
         llm_score = 1 if llm_result.predicted_label == "adversarial" else 0
         
-        ensemble_score = (zkp_score * weights["ZKP"] + 
-                         regex_score * weights["Regex"] + 
-                         llm_score * weights["LLM"])
+        ensemble_mode = os.getenv('ENSEMBLE_MODE', 'weighted').strip().lower()
+        if ensemble_mode == 'majority':
+            votes = zkp_score + regex_score + llm_score
+            ensemble_score = votes / 3.0
+        elif ensemble_mode in ('logic', 'zkp_or_combo'):
+            # ZKP OR (Regex AND LLM)
+            decision = 1 if (zkp_score == 1 or (regex_score == 1 and llm_score == 1)) else 0
+            ensemble_score = float(decision)
+        else:
+            ensemble_score = (zkp_score * weights["ZKP"] + 
+                             regex_score * weights["Regex"] + 
+                             llm_score * weights["LLM"])
         
         detection_time = time.time() - start_time
         
@@ -458,7 +476,8 @@ class AdvancedEvaluationPipeline:
                 "llm_score": llm_score,
                 "ensemble_score": ensemble_score,
                 "weights": weights,
-                "threshold": thr
+                "threshold": thr,
+                "mode": ensemble_mode
             }
         )
     
