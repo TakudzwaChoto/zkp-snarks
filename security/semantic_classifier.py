@@ -120,10 +120,94 @@ def load_prebuilt_semantic_model(path: str) -> SemanticModel:
     return SemanticModel(model)
 
 
+class PrebuiltTfidfLR:
+    def __init__(self, vocab: Dict[str, int], idf: List[float], coef: List[float], intercept: float, ngram_range=(1, 2)):
+        self.vocab = {k.lower(): int(v) for k, v in vocab.items()}
+        self.idf = [float(x) for x in idf]
+        self.coef = [float(x) for x in coef]
+        self.intercept = float(intercept)
+        self.ngram_range = ngram_range
+
+    def _tokens(self, text: str) -> List[str]:
+        tl = text.lower()
+        toks = [t for t in re.split(r"[^a-z0-9]+", tl) if t]
+        out: List[str] = []
+        if self.ngram_range[0] <= 1:
+            out.extend(toks)
+        if self.ngram_range[1] >= 2:
+            for i in range(len(toks) - 1):
+                out.append(toks[i] + ' ' + toks[i+1])
+        return out
+
+    def _tfidf_vector(self, text: str) -> Dict[int, float]:
+        counts: Dict[int, int] = {}
+        for tok in self._tokens(text):
+            if tok in self.vocab:
+                idx = self.vocab[tok]
+                counts[idx] = counts.get(idx, 0) + 1
+        vec: Dict[int, float] = {}
+        for idx, tf in counts.items():
+            idf = self.idf[idx] if idx < len(self.idf) else 1.0
+            vec[idx] = tf * idf
+        # L2 normalize
+        norm = math.sqrt(sum(v*v for v in vec.values())) or 1.0
+        for k in list(vec.keys()):
+            vec[k] = vec[k] / norm
+        return vec
+
+    def _score(self, text: str) -> float:
+        vec = self._tfidf_vector(text)
+        z = self.intercept
+        for idx, val in vec.items():
+            w = self.coef[idx] if idx < len(self.coef) else 0.0
+            z += w * val
+        return z
+
+    def predict(self, arr: List[str]) -> List[int]:
+        out: List[int] = []
+        for a in arr:
+            z = self._score(a)
+            p1 = 1.0 / (1.0 + math.exp(-z)) if z >= 0 else math.exp(z) / (1.0 + math.exp(z))
+            out.append(1 if p1 >= 0.5 else 0)
+        return out
+
+    def predict_proba(self, arr: List[str]):
+        probs = []
+        for a in arr:
+            z = self._score(a)
+            if z >= 0:
+                ez = math.exp(-z)
+                p1 = 1.0 / (1.0 + ez)
+            else:
+                ez = math.exp(z)
+                p1 = ez / (1.0 + ez)
+            probs.append([1.0 - p1, p1])
+        return probs
+
+
+def load_prebuilt_tfidf_lr(path: str) -> SemanticModel:
+    with open(path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    vocab = data['vocab']
+    idf = data['idf']
+    coef = data['coef']
+    intercept = data['intercept']
+    ngram_range = tuple(data.get('ngram_range', [1, 2]))
+    model = PrebuiltTfidfLR(vocab, idf, coef, intercept, ngram_range=ngram_range)  # type: ignore
+    return SemanticModel(model)
+
+
 def train_semantic_model(pairs: List[Tuple[str, str]]) -> SemanticModel:
     texts = [p for p, _ in pairs]
     labels = [1 if y.lower() in ("adversarial", "attack", "malicious") else 0 for _, y in pairs]
     # Prefer prebuilt model if available
+    # Prefer TF-IDF LR if provided
+    tfidf_path = os.getenv('SEMANTIC_TFIDF_PATH') or os.path.join(os.path.dirname(__file__), 'models', 'semantic_tfidf_lr.json')
+    try:
+        if os.path.exists(tfidf_path):
+            return load_prebuilt_tfidf_lr(tfidf_path)
+    except Exception:
+        pass
     pre_path = os.getenv('SEMANTIC_MODEL_PATH') or os.path.join(os.path.dirname(__file__), 'models', 'semantic_lr.json')
     try:
         if os.path.exists(pre_path):
