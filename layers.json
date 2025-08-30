@@ -1,0 +1,10 @@
+{
+  "Ingestion": [],
+  "Normalization/Sanitization": [],
+  "Policy/Rules": ["Regex Baseline"],
+  "Semantic Detection": ["LLM Simulator"],
+  "Assurance/Verification": ["ZKP Framework"],
+  "Orchestration/Ensemble": ["Ensemble"],
+  "Monitoring/Logging": []
+}
+

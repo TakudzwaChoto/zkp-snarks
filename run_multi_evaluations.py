@@ -334,6 +334,53 @@ def aggregate_plots(all_metrics: Dict[int, Dict[str, Dict[str, float]]], out_roo
         plt.close(fig)
 
 
+def compute_and_save_layer_metrics(all_results: Dict[str, Dict[str, Dict[str, float]]], layers_path: str, out_root: str, size_tag: str) -> None:
+    try:
+        with open(layers_path, 'r', encoding='utf-8') as f:
+            layers = json.load(f)
+    except Exception:
+        return
+    # Invert mapping: method -> layer
+    method_to_layer: Dict[str, str] = {}
+    for layer, methods in layers.items():
+        for m in methods:
+            method_to_layer[m] = layer
+    # Aggregate per layer for this size
+    metrics: Dict[str, Dict[str, float]] = {}
+    for method, data in all_results.items():
+        layer = method_to_layer.get(method, None)
+        if layer is None:
+            continue
+        if layer not in metrics:
+            metrics[layer] = {
+                'tp': 0.0, 'tn': 0.0, 'fp': 0.0, 'fn': 0.0, 'latency_sum': 0.0, 'count': 0.0
+            }
+        metrics[layer]['tp'] += data.get('true_positives', 0.0)
+        metrics[layer]['tn'] += data.get('true_negatives', 0.0)
+        metrics[layer]['fp'] += data.get('false_positives', 0.0)
+        metrics[layer]['fn'] += data.get('false_negatives', 0.0)
+        metrics[layer]['latency_sum'] += data.get('avg_detection_time', 0.0)
+        metrics[layer]['count'] += 1.0
+    # Derive standard metrics
+    rows: List[List[str]] = [['layer', 'accuracy', 'precision', 'recall', 'f1', 'latency_ms', 'tp', 'tn', 'fp', 'fn']]
+    for layer, d in metrics.items():
+        tp = d['tp']; tn = d['tn']; fp = d['fp']; fn = d['fn']
+        total = tp + tn + fp + fn
+        precision = (tp / (tp + fp)) if (tp + fp) else 0.0
+        recall = (tp / (tp + fn)) if (tp + fn) else 0.0
+        f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
+        accuracy = ((tp + tn) / total) if total else 0.0
+        latency_ms = (d['latency_sum'] / d['count'] * 1000.0) if d['count'] else 0.0
+        rows.append([layer, f"{accuracy}", f"{precision}", f"{recall}", f"{f1}", f"{latency_ms}", f"{int(tp)}", f"{int(tn)}", f"{int(fp)}", f"{int(fn)}"])                                                                                                                                                                                                                                                                                              
+    # Save CSV
+    out_dir = os.path.join(out_root, f"size_{size_tag}")
+    os.makedirs(out_dir, exist_ok=True)
+    layer_csv = os.path.join(out_dir, 'layer_metrics.csv')
+    with open(layer_csv, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerows(rows)
+
+
 def main():
     out_root = os.path.abspath('results_multi')
     ensure_dirs(out_root)
@@ -372,6 +419,11 @@ def main():
         print(f"  -> chosen: semantic={sem_thr:.2f}, ensemble={ens_thr:.2f} (subset F1={info['best_f1_subset']:.3f})")
         # Now run full dataset with chosen thresholds
         metrics_by_method = run_single_dataset(ds_path, out_dir)
+        # Save per-layer metrics alongside per-method, using layers.json
+        try:
+            compute_and_save_layer_metrics(metrics_by_method, os.path.abspath('layers.json'), out_root, format_size(n))
+        except Exception:
+            pass
         all_metrics[n] = metrics_by_method
 
     # Save combined CSV
