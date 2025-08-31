@@ -486,6 +486,107 @@ def plot_per_size_bars(all_metrics: Dict[int, Dict[str, Dict[str, float]]], out_
         save_dual(fig, os.path.join(out_root, fname))
         plt.close(fig)
 
+
+def export_all_metrics_csv_for_method(all_metrics: Dict[int, Dict[str, Dict[str, float]]], out_root: str, method: str = 'Ensemble') -> str:
+    sizes = sorted(all_metrics.keys())
+    csv_path = os.path.join(out_root, f'all_metrics_{method.replace(" ", "_")}.csv')
+    metrics_order = [
+        'accuracy', 'precision', 'recall', 'f1', 'sensitivity', 'specificity',
+        'detection_rate', 'tamper_resistance', 'latency_ms', 'throughput_sps',
+        'true_positives', 'true_negatives', 'false_positives', 'false_negatives'
+    ]
+    with open(csv_path, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['size'] + metrics_order)
+        for s in sizes:
+            row = [s]
+            data = all_metrics[s].get(method, {})
+            for key in metrics_order:
+                row.append(data.get(key, 0.0))
+            writer.writerow(row)
+    return csv_path
+
+
+def plot_all_metrics_one_figure_lines(all_metrics: Dict[int, Dict[str, Dict[str, float]]], out_root: str, method: str = 'Ensemble') -> None:
+    if plt is None or np is None:
+        return
+    style_plots()
+    sizes = sorted(all_metrics.keys())
+    size_labels = [format_size(s) for s in sizes]
+    metrics_list = [
+        ('accuracy', True), ('precision', True), ('recall', True), ('f1', True),
+        ('sensitivity', True), ('specificity', True), ('detection_rate', True), ('tamper_resistance', True),
+        ('latency_ms', False), ('throughput_sps', False),
+        ('true_positives', False), ('true_negatives', False), ('false_positives', False), ('false_negatives', False)
+    ]
+    fig, axes = plt.subplots(4, 4, figsize=(9.6, 6.4))
+    axes = axes.flatten()
+    for idx, (key, is_pct) in enumerate(metrics_list):
+        ax = axes[idx]
+        yvals = []
+        for s in sizes:
+            v = all_metrics[s].get(method, {}).get(key, np.nan)
+            if is_pct and v <= 1.0:
+                v = v * 100.0
+            yvals.append(v)
+        ax.plot(size_labels, yvals, marker='o', linewidth=1.8, color='#2F5597')
+        ax.set_title(key.replace('_', ' ').title(), fontsize=9)
+        ax.tick_params(axis='x', labelrotation=0, labelsize=8)
+        ax.tick_params(axis='y', labelsize=8)
+        if is_pct:
+            ax.set_ylim(0, 100)
+        ax.grid(True, alpha=0.35, linestyle='--')
+        for spine in ['top', 'right']:
+            ax.spines[spine].set_visible(False)
+    # turn off any remaining axes if fewer than 16
+    for j in range(len(metrics_list), 16):
+        axes[j].axis('off')
+    fig.suptitle(f'All Metrics (Lines) - {method}', fontsize=12, fontweight='bold')
+    fig.tight_layout(rect=[0, 0, 1, 0.96])
+    save_dual(fig, os.path.join(out_root, f'all_metrics_lines_{method.replace(" ", "_")}.png'))
+    plt.close(fig)
+
+
+def plot_all_metrics_one_figure_bars(all_metrics: Dict[int, Dict[str, Dict[str, float]]], out_root: str, method: str = 'Ensemble') -> None:
+    if plt is None or np is None:
+        return
+    style_plots()
+    sizes = sorted(all_metrics.keys())
+    size_labels = [format_size(s) for s in sizes]
+    x = np.arange(len(sizes))
+    metrics_list = [
+        ('accuracy', True), ('precision', True), ('recall', True), ('f1', True),
+        ('sensitivity', True), ('specificity', True), ('detection_rate', True), ('tamper_resistance', True),
+        ('latency_ms', False), ('throughput_sps', False),
+        ('true_positives', False), ('true_negatives', False), ('false_positives', False), ('false_negatives', False)
+    ]
+    fig, axes = plt.subplots(4, 4, figsize=(9.6, 6.4))
+    axes = axes.flatten()
+    for idx, (key, is_pct) in enumerate(metrics_list):
+        ax = axes[idx]
+        vals = []
+        for s in sizes:
+            v = all_metrics[s].get(method, {}).get(key, 0.0)
+            if is_pct and v <= 1.0:
+                v = v * 100.0
+            vals.append(v)
+        bars = ax.bar(x, vals, color='#4F81BD', edgecolor='black', linewidth=0.5)
+        ax.set_title(key.replace('_', ' ').title(), fontsize=9)
+        ax.set_xticks(x)
+        ax.set_xticklabels(size_labels, fontsize=8)
+        ax.tick_params(axis='y', labelsize=8)
+        if is_pct:
+            ax.set_ylim(0, 100)
+        ax.grid(axis='y', alpha=0.35, linestyle='--')
+        for spine in ['top', 'right']:
+            ax.spines[spine].set_visible(False)
+    for j in range(len(metrics_list), 16):
+        axes[j].axis('off')
+    fig.suptitle(f'All Metrics (Bars) - {method}', fontsize=12, fontweight='bold')
+    fig.tight_layout(rect=[0, 0, 1, 0.96])
+    save_dual(fig, os.path.join(out_root, f'all_metrics_bars_{method.replace(" ", "_")}.png'))
+    plt.close(fig)
+
 def compute_and_save_layer_metrics(all_results: Dict[str, Dict[str, Dict[str, float]]], layers_path: str, out_root: str, size_tag: str) -> None:
     try:
         with open(layers_path, 'r', encoding='utf-8') as f:
@@ -597,6 +698,10 @@ def main():
     # Per size bars (by dataset size for a given method)
     try:
         plot_per_size_bars(all_metrics, out_root, method='Ensemble')
+        # Export one CSV with all metrics for Ensemble, and compact all-in-one figures
+        export_all_metrics_csv_for_method(all_metrics, out_root, method='Ensemble')
+        plot_all_metrics_one_figure_lines(all_metrics, out_root, method='Ensemble')
+        plot_all_metrics_one_figure_bars(all_metrics, out_root, method='Ensemble')
     except Exception:
         pass
     print(f"\n✅ Multi-dataset evaluation complete. Results at: {out_root}")
