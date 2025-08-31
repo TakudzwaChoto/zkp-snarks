@@ -96,6 +96,20 @@ def style_plots():
     plt.rcParams['axes.titlesize'] = 14
     plt.rcParams['axes.labelsize'] = 12
     plt.rcParams['legend.fontsize'] = 10
+    # Publication aesthetics
+    plt.rcParams['figure.dpi'] = 100
+    plt.rcParams['savefig.dpi'] = 300
+    plt.rcParams['axes.titleweight'] = 'bold'
+    plt.rcParams['axes.labelweight'] = 'regular'
+
+
+def save_dual(fig, out_png: str):
+    base, _ = os.path.splitext(out_png)
+    fig.savefig(out_png, dpi=300, bbox_inches='tight', facecolor='white')
+    try:
+        fig.savefig(base + '.svg', dpi=300, bbox_inches='tight', transparent=True)
+    except Exception:
+        pass
 
 
 def plot_metrics_grouped(metrics_by_method: Dict[str, Dict[str, float]], out_path: str, title: str) -> None:
@@ -105,7 +119,7 @@ def plot_metrics_grouped(metrics_by_method: Dict[str, Dict[str, float]], out_pat
     groups = ["accuracy", "precision", "recall", "f1"]
     x = np.arange(len(methods)) if np is not None else list(range(len(methods)))
     width = 0.18
-    fig, ax = plt.subplots(figsize=(12, 7))
+    fig, ax = plt.subplots(figsize=(7.2, 4.2))
     colors = ['#2F5597', '#9E480E', '#316395', '#4F81BD']
     for i, g in enumerate(groups):
         vals = [metrics_by_method[m].get(g, 0.0) * 100.0 for m in methods]
@@ -124,7 +138,7 @@ def plot_metrics_grouped(metrics_by_method: Dict[str, Dict[str, float]], out_pat
     for spine in ['top', 'right']:
         ax.spines[spine].set_visible(False)
     fig.tight_layout()
-    fig.savefig(out_path, dpi=200, bbox_inches='tight', facecolor='white')
+    save_dual(fig, out_path)
     plt.close(fig)
 
 
@@ -133,7 +147,7 @@ def plot_latency_bar(latency_by_method: Dict[str, float], out_path: str, title: 
         return
     methods = list(latency_by_method.keys())
     values = [latency_by_method[m] * 1000.0 for m in methods]
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(7.2, 4.2))
     colors = ['#4F81BD'] * len(methods)
     bars = ax.bar(range(len(methods)), values, color=colors, edgecolor='black', linewidth=0.6)
     ax.set_title(title)
@@ -146,7 +160,7 @@ def plot_latency_bar(latency_by_method: Dict[str, float], out_path: str, title: 
     for spine in ['top', 'right']:
         ax.spines[spine].set_visible(False)
     fig.tight_layout()
-    fig.savefig(out_path, dpi=200, bbox_inches='tight', facecolor='white')
+    save_dual(fig, out_path)
     plt.close(fig)
 
 
@@ -317,7 +331,7 @@ def aggregate_plots(all_metrics: Dict[int, Dict[str, Dict[str, float]]], out_roo
     # For each metric, line plot vs dataset size
     metric_names = ['accuracy', 'precision', 'recall', 'f1', 'latency_ms', 'tamper_resistance']
     for met in metric_names:
-        fig, ax = plt.subplots(figsize=(12, 7))
+        fig, ax = plt.subplots(figsize=(7.2, 4.2))
         for method in methods:
             yvals = []
             for s in sizes:
@@ -330,7 +344,7 @@ def aggregate_plots(all_metrics: Dict[int, Dict[str, Dict[str, float]]], out_roo
         ax.grid(True, alpha=0.35, linestyle='--')
         ax.legend(loc='best')
         fig.tight_layout()
-        fig.savefig(os.path.join(out_root, f'aggregate_{met}.png'), dpi=200, bbox_inches='tight', facecolor='white')
+        save_dual(fig, os.path.join(out_root, f'aggregate_{met}.png'))
         plt.close(fig)
 
 
@@ -355,7 +369,7 @@ def plot_per_size_bars(all_metrics: Dict[int, Dict[str, Dict[str, float]]], out_
             if key not in ('latency_ms', 'avg_detection_time'):
                 val = val * 100.0 if val <= 1.0 else val
             values.append(val)
-        fig, ax = plt.subplots(figsize=(10, 6))
+        fig, ax = plt.subplots(figsize=(7.2, 4.2))
         bars = ax.bar(range(len(sizes)), values, color='#4F81BD', edgecolor='black', linewidth=0.6)
         ax.set_title(f'{ylabel.split(" (")[0]} by Dataset Size ({method})')
         ax.set_ylabel(ylabel)
@@ -368,7 +382,7 @@ def plot_per_size_bars(all_metrics: Dict[int, Dict[str, Dict[str, float]]], out_
             ax.spines[spine].set_visible(False)
         fig.tight_layout()
         fname = f'per_size_{key}_{method.replace(" ", "_")}.png'
-        fig.savefig(os.path.join(out_root, fname), dpi=200, bbox_inches='tight', facecolor='white')
+        save_dual(fig, os.path.join(out_root, fname))
         plt.close(fig)
 
 def compute_and_save_layer_metrics(all_results: Dict[str, Dict[str, Dict[str, float]]], layers_path: str, out_root: str, size_tag: str) -> None:
