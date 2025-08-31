@@ -112,27 +112,67 @@ def save_dual(fig, out_png: str):
         pass
 
 
-def plot_metrics_grouped(metrics_by_method: Dict[str, Dict[str, float]], out_path: str, title: str) -> None:
+def plot_metrics_grouped_rates(metrics_by_method: Dict[str, Dict[str, float]], out_path: str, title: str) -> None:
     if plt is None:
         return
     methods = list(metrics_by_method.keys())
-    groups = ["accuracy", "precision", "recall", "f1"]
+    groups = [
+        "accuracy", "precision", "recall", "f1",
+        "sensitivity", "specificity", "detection_rate", "tamper_resistance"
+    ]
     x = np.arange(len(methods)) if np is not None else list(range(len(methods)))
-    width = 0.18
-    fig, ax = plt.subplots(figsize=(7.2, 4.2))
-    colors = ['#2F5597', '#9E480E', '#316395', '#4F81BD']
+    width = 0.10
+    fig, ax = plt.subplots(figsize=(8.5, 4.2))
+    colors = [
+        '#2F5597', '#9E480E', '#316395', '#4F81BD',
+        '#1f7a8c', '#7f5539', '#3a86ff', '#ff7f50'
+    ]
     for i, g in enumerate(groups):
-        vals = [metrics_by_method[m].get(g, 0.0) * 100.0 for m in methods]
+        vals = []
+        for m in methods:
+            v = metrics_by_method[m].get(g, 0.0)
+            if g != 'latency_ms':
+                v = v * 100.0 if v <= 1.0 else v
+            vals.append(v)
         if np is None:
-            xoff = [xi + (i - 1.5) * width for xi in x]
-            ax.bar(xoff, vals, width=width, label=g.title(), color=colors[i], edgecolor='white', linewidth=1)
+            xoff = [xi + (i - (len(groups)-1)/2) * width for xi in x]
+            ax.bar(xoff, vals, width=width, label=g.replace('_',' ').title(), color=colors[i % len(colors)], edgecolor='white', linewidth=0.8)
         else:
-            ax.bar(x + (i - 1.5) * width, vals, width=width, label=g.title(), color=colors[i], edgecolor='white', linewidth=1)
+            ax.bar(x + (i - (len(groups)-1)/2) * width, vals, width=width, label=g.replace('_',' ').title(), color=colors[i % len(colors)], edgecolor='white', linewidth=0.8)
     ax.set_title(title)
     ax.set_ylabel('Score (%)')
     ax.set_xticks(x)
-    ax.set_xticklabels(methods, rotation=20, ha='right')
+    ax.set_xticklabels(methods, rotation=15, ha='right')
     ax.set_ylim(0, 100)
+    ax.legend(loc='upper center', ncol=4, frameon=False)
+    ax.grid(axis='y', alpha=0.35, linestyle='--')
+    for spine in ['top', 'right']:
+        ax.spines[spine].set_visible(False)
+    fig.tight_layout()
+    save_dual(fig, out_path)
+    plt.close(fig)
+
+
+def plot_metrics_grouped_counts(metrics_by_method: Dict[str, Dict[str, float]], out_path: str, title: str) -> None:
+    if plt is None:
+        return
+    methods = list(metrics_by_method.keys())
+    groups = ["true_positives", "true_negatives", "false_positives", "false_negatives"]
+    x = np.arange(len(methods)) if np is not None else list(range(len(methods)))
+    width = 0.18
+    fig, ax = plt.subplots(figsize=(7.2, 4.2))
+    colors = ['#43e97b', '#667eea', '#f093fb', '#f5576c']
+    for i, g in enumerate(groups):
+        vals = [metrics_by_method[m].get(g, 0.0) for m in methods]
+        if np is None:
+            xoff = [xi + (i - 1.5) * width for xi in x]
+            ax.bar(xoff, vals, width=width, label=g.replace('_',' ').title(), color=colors[i], edgecolor='white', linewidth=0.8)
+        else:
+            ax.bar(x + (i - 1.5) * width, vals, width=width, label=g.replace('_',' ').title(), color=colors[i], edgecolor='white', linewidth=0.8)
+    ax.set_title(title)
+    ax.set_ylabel('Count')
+    ax.set_xticks(x)
+    ax.set_xticklabels(methods, rotation=15, ha='right')
     ax.legend(loc='upper center', ncol=4, frameon=False)
     ax.grid(axis='y', alpha=0.35, linestyle='--')
     for spine in ['top', 'right']:
@@ -236,7 +276,11 @@ def run_single_dataset(dataset_path: str, out_dir: str) -> Dict[str, Dict[str, f
         writer = csv.writer(f)
         methods = list(metrics_by_method.keys())
         writer.writerow(['Metric'] + methods)
-        wanted = ['accuracy', 'precision', 'recall', 'f1', 'latency_ms', 'tamper_resistance', 'detection_rate', 'true_positives', 'true_negatives', 'false_positives', 'false_negatives']
+        wanted = [
+            'accuracy', 'precision', 'recall', 'f1', 'sensitivity', 'specificity',
+            'latency_ms', 'tamper_resistance', 'detection_rate',
+            'true_positives', 'true_negatives', 'false_positives', 'false_negatives'
+        ]
         for metric in wanted:
             row = [metric]
             for m in methods:
@@ -246,7 +290,9 @@ def run_single_dataset(dataset_path: str, out_dir: str) -> Dict[str, Dict[str, f
     # Plots per dataset
     style_plots()
     if plt is not None:
-        plot_metrics_grouped(metrics_by_method, os.path.join(out_dir, 'metrics_grouped.png'), title='Metrics by Method')
+        # Grouped rates and counts by method
+        plot_metrics_grouped_rates(metrics_by_method, os.path.join(out_dir, 'metrics_grouped_rates.png'), title='Rates by Method')
+        plot_metrics_grouped_counts(metrics_by_method, os.path.join(out_dir, 'metrics_grouped_counts.png'), title='Outcome Counts by Method')
         plot_latency_bar({m: d.get('avg_detection_time', 0.0) for m, d in metrics_by_method.items()}, os.path.join(out_dir, 'latency.png'), title='Latency by Method')
         # Confusion matrix and distribution for Ensemble (primary) and ZKP
         for key in ['Ensemble', 'ZKP Framework']:
@@ -328,24 +374,49 @@ def aggregate_plots(all_metrics: Dict[int, Dict[str, Dict[str, float]]], out_roo
     methods = sorted(list(methods))
     sizes = sorted(all_metrics.keys())
 
-    # For each metric, line plot vs dataset size
-    metric_names = ['accuracy', 'precision', 'recall', 'f1', 'latency_ms', 'tamper_resistance']
-    for met in metric_names:
-        fig, ax = plt.subplots(figsize=(7.2, 4.2))
-        for method in methods:
-            yvals = []
+    def _grouped_bars_for_metric(metric_key: str, ylabel: str, is_percentage: bool) -> None:
+        size_labels = [format_size(s) for s in sizes]
+        x = np.arange(len(sizes))
+        width = 0.12 if len(methods) >= 6 else 0.15
+        fig, ax = plt.subplots(figsize=(8.5, 4.2))
+        colors = ['#2F5597', '#9E480E', '#316395', '#4F81BD', '#1f7a8c', '#7f5539', '#3a86ff', '#ff7f50']
+        for i, method in enumerate(methods):
+            vals = []
             for s in sizes:
-                val = all_metrics[s].get(method, {}).get(met, np.nan)
-                yvals.append(val)
-            ax.plot([format_size(s) for s in sizes], yvals, marker='o', linewidth=2.5, label=method)
-        ax.set_title(f'{met.replace("_", " ").title()} vs Dataset Size')
-        ax.set_xlabel('Dataset Size')
-        ax.set_ylabel(met.replace('_', ' ').title())
-        ax.grid(True, alpha=0.35, linestyle='--')
-        ax.legend(loc='best')
+                v = all_metrics[s].get(method, {}).get(metric_key, 0.0)
+                if is_percentage and metric_key not in ('latency_ms',):
+                    v = v * 100.0 if v <= 1.0 else v
+                vals.append(v)
+            ax.bar(x + (i - (len(methods)-1)/2) * width, vals, width=width, label=method, color=colors[i % len(colors)], edgecolor='black', linewidth=0.6)
+        ax.set_title(f'{ylabel.split(" (")[0]} by Dataset Size')
+        ax.set_ylabel(ylabel)
+        ax.set_xticks(x)
+        ax.set_xticklabels(size_labels)
+        if is_percentage:
+            ax.set_ylim(0, 100)
+        ax.grid(axis='y', alpha=0.35, linestyle='--')
+        for spine in ['top', 'right']:
+            ax.spines[spine].set_visible(False)
+        ax.legend(loc='upper center', ncol=min(4, len(methods)), frameon=False)
         fig.tight_layout()
-        save_dual(fig, os.path.join(out_root, f'aggregate_{met}.png'))
+        save_dual(fig, os.path.join(out_root, f'grouped_by_size_{metric_key}.png'))
         plt.close(fig)
+
+    # Percentage-like metrics
+    percent_metrics = [
+        ('accuracy', 'Accuracy (%)'), ('precision', 'Precision (%)'), ('recall', 'Recall (%)'), ('f1', 'F1 (%)'),
+        ('sensitivity', 'Sensitivity (%)'), ('specificity', 'Specificity (%)'), ('tamper_resistance', 'Tamper Resistance (%)'),
+        ('detection_rate', 'Detection Rate (%)')
+    ]
+    for key, ylabel in percent_metrics:
+        _grouped_bars_for_metric(key, ylabel, is_percentage=True)
+
+    # Latency in ms
+    _grouped_bars_for_metric('latency_ms', 'Latency (ms)', is_percentage=False)
+
+    # Count metrics
+    for key in ['true_positives', 'true_negatives', 'false_positives', 'false_negatives']:
+        _grouped_bars_for_metric(key, key.replace('_', ' ').title(), is_percentage=False)
 
 
 def plot_per_size_bars(all_metrics: Dict[int, Dict[str, Dict[str, float]]], out_root: str, method: str = 'Ensemble') -> None:
@@ -482,7 +553,7 @@ def main():
     with open(combined_csv, 'w', newline='') as f:
         writer = csv.writer(f)
         # header: size, method, metrics...
-        headers = ['size', 'method', 'accuracy', 'precision', 'recall', 'f1', 'latency_ms', 'tamper_resistance', 'detection_rate', 'true_positives', 'true_negatives', 'false_positives', 'false_negatives']
+        headers = ['size', 'method', 'accuracy', 'precision', 'recall', 'f1', 'sensitivity', 'specificity', 'latency_ms', 'tamper_resistance', 'detection_rate', 'true_positives', 'true_negatives', 'false_positives', 'false_negatives']
         writer.writerow(headers)
         for n in DATASET_SIZES:
             for method, data in all_metrics[n].items():
@@ -491,7 +562,7 @@ def main():
                     row.append(data.get(key, 0))
                 writer.writerow(row)
 
-    # Aggregated visuals across sizes
+    # Aggregated visuals across sizes (grouped bar charts by size)
     aggregate_plots(all_metrics, out_root)
     # Per size bars (by dataset size for a given method)
     try:

@@ -1,0 +1,6 @@
+{
+  "semantic_threshold": 0.3,
+  "ensemble_threshold": 0.12,
+  "best_f1_subset": 0.934128934128934,
+  "subset_n": 10000.0
+}
