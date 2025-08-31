@@ -519,7 +519,7 @@ def plot_all_metrics_one_figure_lines(all_metrics: Dict[int, Dict[str, Dict[str,
         ('latency_ms', False), ('throughput_sps', False),
         ('true_positives', False), ('true_negatives', False), ('false_positives', False), ('false_negatives', False)
     ]
-    fig, axes = plt.subplots(4, 4, figsize=(8.0, 5.5))
+    fig, axes = plt.subplots(4, 4, figsize=(8.0, 5.0))
     axes = axes.flatten()
     for idx, (key, is_pct) in enumerate(metrics_list):
         ax = axes[idx]
@@ -527,7 +527,7 @@ def plot_all_metrics_one_figure_lines(all_metrics: Dict[int, Dict[str, Dict[str,
         for s in sizes:
             v = all_metrics[s].get(method, {}).get(key, np.nan)
             yvals.append(v)
-        ax.plot(size_labels, yvals, marker='o', linewidth=1.8, color='#2F5597')
+        ax.plot(size_labels, yvals, marker='o', markersize=3, linewidth=0.9, color='#2F5597')
         ax.set_title(key.replace('_', ' ').title(), fontsize=9)
         ax.tick_params(axis='x', labelrotation=0, labelsize=8)
         ax.tick_params(axis='y', labelsize=8)
@@ -558,7 +558,7 @@ def plot_all_metrics_one_figure_bars(all_metrics: Dict[int, Dict[str, Dict[str, 
         ('latency_ms', False), ('throughput_sps', False),
         ('true_positives', False), ('true_negatives', False), ('false_positives', False), ('false_negatives', False)
     ]
-    fig, axes = plt.subplots(4, 4, figsize=(8.0, 5.5))
+    fig, axes = plt.subplots(4, 4, figsize=(8.0, 5.0))
     axes = axes.flatten()
     for idx, (key, is_pct) in enumerate(metrics_list):
         ax = axes[idx]
@@ -566,7 +566,10 @@ def plot_all_metrics_one_figure_bars(all_metrics: Dict[int, Dict[str, Dict[str, 
         for s in sizes:
             v = all_metrics[s].get(method, {}).get(key, 0.0)
             vals.append(v)
-        bars = ax.bar(x, vals, color='#4F81BD', edgecolor='black', linewidth=0.5)
+        # varied colors per subplot for visual distinction
+        palette = ['#4F81BD', '#9BBB59', '#C0504D', '#8064A2', '#4BACC6', '#F79646', '#2F5597', '#00A99D']
+        bar_colors = [palette[i % len(palette)] for i in range(len(vals))]
+        bars = ax.bar(x, vals, color=bar_colors, edgecolor='#333333', linewidth=0.4)
         ax.set_title(key.replace('_', ' ').title(), fontsize=9)
         ax.set_xticks(x)
         ax.set_xticklabels(size_labels, fontsize=8)
@@ -587,7 +590,7 @@ def plot_all_metrics_one_figure_bars(all_metrics: Dict[int, Dict[str, Dict[str, 
                     label = f"{int(round(v))}"
                 except Exception:
                     label = f"{v}"
-            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + (max(vals) * 0.02 if max(vals) else 0.05), label, ha='center', va='bottom', fontsize=7)
+            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + (max(vals) * 0.015 if max(vals) else 0.03), label, ha='center', va='bottom', fontsize=6.5)
     for j in range(len(metrics_list), 16):
         axes[j].axis('off')
     fig.suptitle(f'All Metrics (Bars) - {method}', fontsize=12, fontweight='bold')
