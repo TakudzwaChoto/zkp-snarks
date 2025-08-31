@@ -204,6 +204,28 @@ def plot_latency_bar(latency_by_method: Dict[str, float], out_path: str, title: 
     plt.close(fig)
 
 
+def plot_throughput_bar(throughput_by_method: Dict[str, float], out_path: str, title: str) -> None:
+    if plt is None:
+        return
+    methods = list(throughput_by_method.keys())
+    values = [throughput_by_method[m] for m in methods]
+    fig, ax = plt.subplots(figsize=(7.2, 4.2))
+    colors = ['#2ca02c'] * len(methods)
+    bars = ax.bar(range(len(methods)), values, color=colors, edgecolor='black', linewidth=0.6)
+    ax.set_title(title)
+    ax.set_ylabel('Throughput (samples/s)')
+    ax.set_xticks(range(len(methods)))
+    ax.set_xticklabels(methods, rotation=20, ha='right')
+    for bar, v in zip(bars, values):
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + (max(values) * 0.015 if max(values) else 1), f"{v:.1f}", ha='center', va='bottom')
+    ax.grid(axis='y', alpha=0.35, linestyle='--')
+    for spine in ['top', 'right']:
+        ax.spines[spine].set_visible(False)
+    fig.tight_layout()
+    save_dual(fig, out_path)
+    plt.close(fig)
+
+
 def plot_confusion_matrix(tp: int, tn: int, fp: int, fn: int, out_path: str, title: str) -> None:
     if plt is None:
         return
@@ -254,6 +276,9 @@ def run_single_dataset(dataset_path: str, out_dir: str) -> Dict[str, Dict[str, f
         # add detection_rate alias and latency_ms
         metrics['detection_rate'] = metrics.get('recall', 0.0)
         metrics['latency_ms'] = metrics.get('avg_detection_time', 0.0) * 1000.0
+        # throughput in samples per second
+        avg_dt = metrics.get('avg_detection_time', 0.0)
+        metrics['throughput_sps'] = (1.0 / avg_dt) if avg_dt and avg_dt > 0 else 0.0
         metrics_by_method[method] = metrics
     # Tamper resistance per method (uses adversarial perturbations, capped internally)
     try:
@@ -279,6 +304,7 @@ def run_single_dataset(dataset_path: str, out_dir: str) -> Dict[str, Dict[str, f
         wanted = [
             'accuracy', 'precision', 'recall', 'f1', 'sensitivity', 'specificity',
             'latency_ms', 'tamper_resistance', 'detection_rate',
+            'throughput_sps',
             'true_positives', 'true_negatives', 'false_positives', 'false_negatives'
         ]
         for metric in wanted:
@@ -294,6 +320,7 @@ def run_single_dataset(dataset_path: str, out_dir: str) -> Dict[str, Dict[str, f
         plot_metrics_grouped_rates(metrics_by_method, os.path.join(out_dir, 'metrics_grouped_rates.png'), title='Rates by Method')
         plot_metrics_grouped_counts(metrics_by_method, os.path.join(out_dir, 'metrics_grouped_counts.png'), title='Outcome Counts by Method')
         plot_latency_bar({m: d.get('avg_detection_time', 0.0) for m, d in metrics_by_method.items()}, os.path.join(out_dir, 'latency.png'), title='Latency by Method')
+        plot_throughput_bar({m: d.get('throughput_sps', 0.0) for m, d in metrics_by_method.items()}, os.path.join(out_dir, 'throughput.png'), title='Throughput by Method')
         # Confusion matrix and distribution for Ensemble (primary) and ZKP
         for key in ['Ensemble', 'ZKP Framework']:
             if key in all_results:
@@ -413,6 +440,8 @@ def aggregate_plots(all_metrics: Dict[int, Dict[str, Dict[str, float]]], out_roo
 
     # Latency in ms
     _grouped_bars_for_metric('latency_ms', 'Latency (ms)', is_percentage=False)
+    # Throughput in samples/s
+    _grouped_bars_for_metric('throughput_sps', 'Throughput (samples/s)', is_percentage=False)
 
     # Count metrics
     for key in ['true_positives', 'true_negatives', 'false_positives', 'false_negatives']:
@@ -431,7 +460,8 @@ def plot_per_size_bars(all_metrics: Dict[int, Dict[str, Dict[str, float]]], out_
         ('recall', 'Recall (%)'),
         ('f1', 'F1 (%)'),
         ('latency_ms', 'Latency (ms)'),
-        ('tamper_resistance', 'Tamper Resistance (%)')
+        ('tamper_resistance', 'Tamper Resistance (%)'),
+        ('throughput_sps', 'Throughput (samples/s)')
     ]
     for key, ylabel in metrics_to_plot:
         values = []
@@ -553,7 +583,7 @@ def main():
     with open(combined_csv, 'w', newline='') as f:
         writer = csv.writer(f)
         # header: size, method, metrics...
-        headers = ['size', 'method', 'accuracy', 'precision', 'recall', 'f1', 'sensitivity', 'specificity', 'latency_ms', 'tamper_resistance', 'detection_rate', 'true_positives', 'true_negatives', 'false_positives', 'false_negatives']
+        headers = ['size', 'method', 'accuracy', 'precision', 'recall', 'f1', 'sensitivity', 'specificity', 'latency_ms', 'throughput_sps', 'tamper_resistance', 'detection_rate', 'true_positives', 'true_negatives', 'false_positives', 'false_negatives']
         writer.writerow(headers)
         for n in DATASET_SIZES:
             for method, data in all_metrics[n].items():
