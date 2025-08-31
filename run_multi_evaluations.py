@@ -519,22 +519,20 @@ def plot_all_metrics_one_figure_lines(all_metrics: Dict[int, Dict[str, Dict[str,
         ('latency_ms', False), ('throughput_sps', False),
         ('true_positives', False), ('true_negatives', False), ('false_positives', False), ('false_negatives', False)
     ]
-    fig, axes = plt.subplots(4, 4, figsize=(9.6, 6.4))
+    fig, axes = plt.subplots(4, 4, figsize=(8.0, 5.5))
     axes = axes.flatten()
     for idx, (key, is_pct) in enumerate(metrics_list):
         ax = axes[idx]
         yvals = []
         for s in sizes:
             v = all_metrics[s].get(method, {}).get(key, np.nan)
-            if is_pct and v <= 1.0:
-                v = v * 100.0
             yvals.append(v)
         ax.plot(size_labels, yvals, marker='o', linewidth=1.8, color='#2F5597')
         ax.set_title(key.replace('_', ' ').title(), fontsize=9)
         ax.tick_params(axis='x', labelrotation=0, labelsize=8)
         ax.tick_params(axis='y', labelsize=8)
         if is_pct:
-            ax.set_ylim(0, 100)
+            ax.set_ylim(0, 1)
         ax.grid(True, alpha=0.35, linestyle='--')
         for spine in ['top', 'right']:
             ax.spines[spine].set_visible(False)
@@ -560,15 +558,13 @@ def plot_all_metrics_one_figure_bars(all_metrics: Dict[int, Dict[str, Dict[str, 
         ('latency_ms', False), ('throughput_sps', False),
         ('true_positives', False), ('true_negatives', False), ('false_positives', False), ('false_negatives', False)
     ]
-    fig, axes = plt.subplots(4, 4, figsize=(9.6, 6.4))
+    fig, axes = plt.subplots(4, 4, figsize=(8.0, 5.5))
     axes = axes.flatten()
     for idx, (key, is_pct) in enumerate(metrics_list):
         ax = axes[idx]
         vals = []
         for s in sizes:
             v = all_metrics[s].get(method, {}).get(key, 0.0)
-            if is_pct and v <= 1.0:
-                v = v * 100.0
             vals.append(v)
         bars = ax.bar(x, vals, color='#4F81BD', edgecolor='black', linewidth=0.5)
         ax.set_title(key.replace('_', ' ').title(), fontsize=9)
@@ -576,10 +572,22 @@ def plot_all_metrics_one_figure_bars(all_metrics: Dict[int, Dict[str, Dict[str, 
         ax.set_xticklabels(size_labels, fontsize=8)
         ax.tick_params(axis='y', labelsize=8)
         if is_pct:
-            ax.set_ylim(0, 100)
+            ax.set_ylim(0, 1)
         ax.grid(axis='y', alpha=0.35, linestyle='--')
         for spine in ['top', 'right']:
             ax.spines[spine].set_visible(False)
+        # precise value labels matching CSV units
+        for bar, v in zip(bars, vals):
+            if is_pct:
+                label = f"{v:.3f}"
+            elif key == 'latency_ms' or key == 'throughput_sps':
+                label = f"{v:.1f}"
+            else:
+                try:
+                    label = f"{int(round(v))}"
+                except Exception:
+                    label = f"{v}"
+            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + (max(vals) * 0.02 if max(vals) else 0.05), label, ha='center', va='bottom', fontsize=7)
     for j in range(len(metrics_list), 16):
         axes[j].axis('off')
     fig.suptitle(f'All Metrics (Bars) - {method}', fontsize=12, fontweight='bold')
