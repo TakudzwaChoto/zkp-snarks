@@ -3,3 +3,18 @@
 [2025-09-04 00:51:50 +0000] [10186] [INFO] Using worker: sync
 [2025-09-04 00:51:50 +0000] [10361] [INFO] Booting worker with pid: 10361
 [2025-09-04 00:51:50 +0000] [10362] [INFO] Booting worker with pid: 10362
+[2025-09-05 20:16:39 +0000] [10186] [CRITICAL] WORKER TIMEOUT (pid:10361)
+[2025-09-05 20:16:39 +0000] [10361] [INFO] Worker exiting (pid: 10361)
+[2025-09-05 20:16:39 +0000] [10186] [CRITICAL] WORKER TIMEOUT (pid:10362)
+[2025-09-05 20:16:39 +0000] [10362] [INFO] Worker exiting (pid: 10362)
+[2025-09-05 20:16:40 +0000] [10186] [ERROR] Worker (pid:10361) exited with code 1
+[2025-09-05 20:16:40 +0000] [10186] [ERROR] Worker (pid:10361) exited with code 1.
+[2025-09-05 20:16:40 +0000] [10186] [ERROR] Worker (pid:10362) was sent SIGKILL! Perhaps out of memory?
+[2025-09-05 20:16:40 +0000] [14656] [INFO] Booting worker with pid: 14656
+[2025-09-05 20:16:40 +0000] [14657] [INFO] Booting worker with pid: 14657
+[2025-09-05 20:16:40 +0000] [10186] [ERROR] Worker (pid:14656) was sent SIGHUP!
+[2025-09-05 20:16:40 +0000] [10186] [ERROR] Worker (pid:14657) was sent SIGHUP!
+[2025-09-05 20:16:40 +0000] [10186] [INFO] Handling signal: hup
+[2025-09-05 20:16:40 +0000] [10186] [INFO] Hang up: Master
+[2025-09-05 20:16:40 +0000] [14659] [INFO] Booting worker with pid: 14659
+[2025-09-05 20:16:40 +0000] [14660] [INFO] Booting worker with pid: 14660
