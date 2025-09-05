@@ -27,6 +27,12 @@ from cryptography.exceptions import InvalidSignature
 
 load_dotenv()
 
+def safe_print(*args, **kwargs):
+    try:
+        print(*args, **kwargs)
+    except OSError:
+        pass
+
 # --- Available LLM Models ---
 AVAILABLE_MODELS = [
 	"tinyllama:1.1b",
@@ -78,11 +84,11 @@ def get_llm_response(prompt: str) -> str:
         data = resp.json()
         # Extract the assistant's reply
         result = data["choices"][0]["message"]["content"]
-        print(f"Prompt sent to model ({model}): {prompt}")
-        print(f"Model response: {result}")
+        safe_print(f"Prompt sent to model ({model}): {prompt}")
+        safe_print(f"Model response: {result}")
         return result
     except Exception as e:
-        print(f"Error getting LLM response: {str(e)}")
+        safe_print(f"Error getting LLM response: {str(e)}")
         return f"Error getting LLM response: {str(e)}"
 
 
@@ -341,9 +347,7 @@ def sanitize_prompt(prompt: str) -> (str, bool):
     for pattern in suspicious_patterns:
         if re.search(pattern, normalized, re.IGNORECASE):
             triggered = True
-            print(f"Sanitization blocked pattern: {pattern}")
-    # Delegate to the centralized sanitizer to avoid divergence
-    normalized, triggered, _reasons = sanitizer_sanitize_prompt(prompt)
+            safe_print(f"Sanitization blocked pattern: {pattern}")
     return normalized, triggered
 
 def validate_prompt(prompt: str) -> bool:
@@ -383,7 +387,7 @@ def llm_self_check(prompt: str) -> bool:
     )
     try:
         response = get_llm_response(check_prompt)
-        print(f"Self-checker response: {response}")
+        safe_print(f"Self-checker response: {response}")
         session['self_check_reason'] = response  # Store for UI
         # Stricter YES/NO parsing: only allow YES/NO as first word, ignore case, strip punctuation
         first_word = response.strip().split()[0].upper().strip('.,:;!') if response.strip() else ""
@@ -396,10 +400,10 @@ def llm_self_check(prompt: str) -> bool:
         else:
             # Fallback: treat ambiguous/unknown as allowed but log for research
             session['self_check_status'] = 'ambiguous'
-            print(f"Ambiguous self-checker response: {response}")
+            safe_print(f"Ambiguous self-checker response: {response}")
             return True
     except Exception as e:
-        print(f"Error in self-checker: {str(e)}")
+        safe_print(f"Error in self-checker: {str(e)}")
         session['self_check_reason'] = str(e)
         session['self_check_status'] = 'error'
         return True
@@ -459,15 +463,15 @@ def output_filter(response: str) -> bool:
     ]
     for pat in sensitive_patterns:
         if re.search(pat, response, re.IGNORECASE):
-            print(f"Output filter: Blocked sensitive pattern: {pat}")
+            safe_print(f"Output filter: Blocked sensitive pattern: {pat}")
             return False
     for word in inappropriate_words:
         if word in response.lower():
-            print(f"Output filter: Blocked inappropriate word: {word}")
+            safe_print(f"Output filter: Blocked inappropriate word: {word}")
             return False
     for phrase in injection_signs:
         if phrase in response.lower():
-            print(f"Output filter: Blocked injection sign: {phrase}")
+            safe_print(f"Output filter: Blocked injection sign: {phrase}")
             return False
     return True
 
@@ -626,7 +630,7 @@ def index():
             session["chat_history"].append(user_msg)
             session.modified = True
             flash("Response blocked: Output filter detected sensitive, inappropriate, or unsafe content.")
-            print(f"Blocked response: {response}")
+            safe_print(f"Blocked response: {response}")
             return redirect(url_for("index"))
         # ZKP-based privacy-preserving logging
         interaction_data = {
