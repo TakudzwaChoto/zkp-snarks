@@ -1,0 +1,5 @@
+method,avg_accuracy,avg_precision,avg_recall,avg_f1,avg_latency_ms,avg_throughput_sps
+Ensemble,0.9346,0.9235,0.9399,0.9319,0.2319,4313.68
+ZKP Framework,0.9089,0.9188,0.8857,0.9020,0.0897,11199.65
+Regex Baseline,0.9081,0.9187,0.8848,0.9006,0.0623,16107.86
+LLM Simulator,0.8143,1.0000,0.6074,0.7557,0.0680,14725.68

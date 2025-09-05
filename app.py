@@ -1,6 +1,6 @@
 from flask import Flask, request, render_template, redirect, url_for, flash, session
 from logger import SecureLogger
-from zkp_security import ZKPSecurity, ZKProof
+from zkp_security import ZKPSecurity
 import os
 try:
 	from autogen import AssistantAgent, UserProxyAgent
@@ -9,7 +9,6 @@ except Exception:
 	UserProxyAgent = None
 from dotenv import load_dotenv
 from security.normalizer import normalize_prompt, NORMALIZER_VERSION
-from security.sanitizer import sanitize_prompt
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 import secrets as pysecrets
 import requests
@@ -18,12 +17,21 @@ from flask_limiter.util import get_remote_address
 import re
 from functools import wraps
 from datetime import datetime
-import base64, json, hashlib, sqlite3
+import base64
+import json
+import hashlib
+import sqlite3
 from datetime import timedelta
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from cryptography.exceptions import InvalidSignature
 
 load_dotenv()
+
+def safe_print(*args, **kwargs):
+    try:
+        print(*args, **kwargs)
+    except OSError:
+        pass
 
 # --- Available LLM Models ---
 AVAILABLE_MODELS = [
@@ -76,11 +84,11 @@ def get_llm_response(prompt: str) -> str:
         data = resp.json()
         # Extract the assistant's reply
         result = data["choices"][0]["message"]["content"]
-        print(f"Prompt sent to model ({model}): {prompt}")
-        print(f"Model response: {result}")
+        safe_print(f"Prompt sent to model ({model}): {prompt}")
+        safe_print(f"Model response: {result}")
         return result
     except Exception as e:
-        print(f"Error getting LLM response: {str(e)}")
+        safe_print(f"Error getting LLM response: {str(e)}")
         return f"Error getting LLM response: {str(e)}"
 
 
@@ -157,7 +165,8 @@ def msig_register_key():
     if not signer or not pub_b64:
         return {"error": "signer and pub_key_base64 required"}, 400
     now = datetime.utcnow().isoformat()
-    con = _db(); cur = con.cursor()
+    con = _db()
+    cur = con.cursor()
     try:
         cur.execute("INSERT OR REPLACE INTO msig_keys(signer, pub_key_base64, status, created_at) VALUES(?,?, 'active', ?)", (signer, pub_b64, now))
         con.commit()
@@ -178,21 +187,26 @@ def msig_create_op():
         return {"error": "payload_json must be valid JSON"}, 400
     phash = hashlib.sha256(payload.encode("utf-8")).hexdigest()
     now = datetime.utcnow().isoformat()
-    con = _db(); cur = con.cursor()
+    con = _db()
+    cur = con.cursor()
     cur.execute("INSERT INTO msig_ops(op_type, payload_json, payload_hash, status, timelock_secs, quorum_required, created_at) VALUES(?,?,?,?,?,?,?)",
                 (op_type, payload, phash, 'pending', timelock_secs, quorum_required, now))
     op_id = cur.lastrowid
-    con.commit(); con.close()
+    con.commit()
+    con.close()
     return {"op_id": op_id, "payload_hash": phash, "created_at": now}
 
 @app.route("/msig/ops/<int:op_id>", methods=["GET"])
 @login_required(role="admin")
 def msig_get_op(op_id: int):
-    con = _db(); con.row_factory = sqlite3.Row; cur = con.cursor()
+    con = _db()
+    con.row_factory = sqlite3.Row
+    cur = con.cursor()
     cur.execute("SELECT * FROM msig_ops WHERE id=?", (op_id,))
     op = cur.fetchone()
     if not op:
-        con.close(); return {"error": "not found"}, 404
+        con.close()
+        return {"error": "not found"}, 404
     cur.execute("SELECT signer, valid, reason, signed_at FROM msig_approvals WHERE op_id=?", (op_id,))
     approvals = [dict(r) for r in cur.fetchall()]
     con.close()
@@ -205,15 +219,19 @@ def msig_approve(op_id: int):
     sig_b64 = request.form.get("sig_base64")
     if not signer or not sig_b64:
         return {"error": "signer and sig_base64 required"}, 400
-    con = _db(); con.row_factory = sqlite3.Row; cur = con.cursor()
+    con = _db()
+    con.row_factory = sqlite3.Row
+    cur = con.cursor()
     cur.execute("SELECT * FROM msig_ops WHERE id=?", (op_id,))
     op = cur.fetchone()
     if not op:
-        con.close(); return {"error": "op not found"}, 404
+        con.close()
+        return {"error": "op not found"}, 404
     cur.execute("SELECT pub_key_base64, status FROM msig_keys WHERE signer=?", (signer,))
     row = cur.fetchone()
     if not row or row["status"] != 'active':
-        con.close(); return {"error": "unknown or inactive signer"}, 400
+        con.close()
+        return {"error": "unknown or inactive signer"}, 400
     msg = msig_canonical(dict(op))
     valid = 1 if msig_verify(row["pub_key_base64"], msg, sig_b64) else 0
     reason = None if valid else "invalid signature"
@@ -237,19 +255,25 @@ def msig_approve(op_id: int):
 @app.route("/msig/ops/<int:op_id>/execute", methods=["POST"])
 @login_required(role="admin")
 def msig_execute(op_id: int):
-    con = _db(); con.row_factory = sqlite3.Row; cur = con.cursor()
+    con = _db()
+    con.row_factory = sqlite3.Row
+    cur = con.cursor()
     cur.execute("SELECT * FROM msig_ops WHERE id=?", (op_id,))
     op = cur.fetchone()
     if not op:
-        con.close(); return {"error": "op not found"}, 404
+        con.close()
+        return {"error": "op not found"}, 404
     if op["status"] != 'approved':
-        con.close(); return {"error": "quorum not met"}, 400
+        con.close()
+        return {"error": "quorum not met"}, 400
     not_before = datetime.fromisoformat(op["execute_not_before"]) if op["execute_not_before"] else None
     if not not_before or datetime.utcnow() < not_before:
-        con.close(); return {"error": "time-lock active"}, 400
+        con.close()
+        return {"error": "time-lock active"}, 400
     # TODO: perform the high-risk action based on op_type/payload_json, idempotently.
     cur.execute("UPDATE msig_ops SET status='executed' WHERE id=?", (op_id,))
-    con.commit(); con.close()
+    con.commit()
+    con.close()
     return {"ok": True}
 
 @app.route("/login", methods=["GET", "POST"])
@@ -323,7 +347,7 @@ def sanitize_prompt(prompt: str) -> (str, bool):
     for pattern in suspicious_patterns:
         if re.search(pattern, normalized, re.IGNORECASE):
             triggered = True
-            print(f"Sanitization blocked pattern: {pattern}")
+            safe_print(f"Sanitization blocked pattern: {pattern}")
     return normalized, triggered
 
 def validate_prompt(prompt: str) -> bool:
@@ -363,7 +387,7 @@ def llm_self_check(prompt: str) -> bool:
     )
     try:
         response = get_llm_response(check_prompt)
-        print(f"Self-checker response: {response}")
+        safe_print(f"Self-checker response: {response}")
         session['self_check_reason'] = response  # Store for UI
         # Stricter YES/NO parsing: only allow YES/NO as first word, ignore case, strip punctuation
         first_word = response.strip().split()[0].upper().strip('.,:;!') if response.strip() else ""
@@ -376,10 +400,10 @@ def llm_self_check(prompt: str) -> bool:
         else:
             # Fallback: treat ambiguous/unknown as allowed but log for research
             session['self_check_status'] = 'ambiguous'
-            print(f"Ambiguous self-checker response: {response}")
+            safe_print(f"Ambiguous self-checker response: {response}")
             return True
     except Exception as e:
-        print(f"Error in self-checker: {str(e)}")
+        safe_print(f"Error in self-checker: {str(e)}")
         session['self_check_reason'] = str(e)
         session['self_check_status'] = 'error'
         return True
@@ -439,15 +463,15 @@ def output_filter(response: str) -> bool:
     ]
     for pat in sensitive_patterns:
         if re.search(pat, response, re.IGNORECASE):
-            print(f"Output filter: Blocked sensitive pattern: {pat}")
+            safe_print(f"Output filter: Blocked sensitive pattern: {pat}")
             return False
     for word in inappropriate_words:
         if word in response.lower():
-            print(f"Output filter: Blocked inappropriate word: {word}")
+            safe_print(f"Output filter: Blocked inappropriate word: {word}")
             return False
     for phrase in injection_signs:
         if phrase in response.lower():
-            print(f"Output filter: Blocked injection sign: {phrase}")
+            safe_print(f"Output filter: Blocked injection sign: {phrase}")
             return False
     return True
 
@@ -517,7 +541,9 @@ def index():
         }
         # Strict mode: block if sanitization, self-checker, or ZKP validation fails
         if strict_mode:
-            t3 = datetime.now(); llm_ok = llm_self_check(prompt); t_llm = (datetime.now()-t3).total_seconds()
+            t3 = datetime.now()
+            llm_ok = llm_self_check(prompt)
+            t_llm = (datetime.now()-t3).total_seconds()
             if triggered or not llm_ok or not zkp_valid or not snark_valid:
                 user_msg["status"] = "blocked"
                 session["chat_history"].append(user_msg)
@@ -533,9 +559,11 @@ def index():
                     },
                     'zkp_safety_score': zkp_proof.metadata.get('safety_score', 0),
                     'zkp_proof_id': zkp_proof.commitment[:16],
+                    'zkp_valid': bool(zkp_valid),
                     'snark_policy_id': os.getenv('SNARK_POLICY_ID', 'default'),
                     'snark_score': (snark_obj or {}).get('publicSignals', {}).get('score'),
                     'normalizer_version': NORMALIZER_VERSION,
+                    'risk_level': 'high' if (triggered or (not zkp_valid) or (not snark_valid)) else 'low',
                     'timings_ms': {
                         'sanitize': round(t_sanitize*1000, 2),
                         'llm_self_check': round(t_llm*1000, 2),
@@ -561,9 +589,11 @@ def index():
                     },
                     'zkp_safety_score': zkp_proof.metadata.get('safety_score', 0),
                     'zkp_proof_id': zkp_proof.commitment[:16],
+                    'zkp_valid': bool(zkp_valid),
                     'snark_policy_id': os.getenv('SNARK_POLICY_ID', 'default'),
                     'snark_score': (snark_obj or {}).get('publicSignals', {}).get('score'),
                     'normalizer_version': NORMALIZER_VERSION,
+                    'risk_level': 'high' if (triggered or (not zkp_valid) or (not snark_valid)) else 'low',
                     'timings_ms': {
                         'sanitize': round(t_sanitize*1000, 2),
                         'zkp': round(t_zkp*1000, 2),
@@ -584,19 +614,23 @@ def index():
                 return redirect(url_for("index"))
             # LLM self-checker (advisory only in non-strict mode)
             try:
-                t1 = datetime.now(); _ = llm_self_check(sanitized_prompt); t_llm = (datetime.now()-t1).total_seconds()
+                t1 = datetime.now()
+                _ = llm_self_check(sanitized_prompt)
+                t_llm = (datetime.now()-t1).total_seconds()
             except Exception:
                 t_llm = 0.0
         guarded_prompt = add_safety_guardrails(sanitized_prompt)
-        t2 = datetime.now(); response = get_llm_response(guarded_prompt); t_llm_gen = (datetime.now()-t2).total_seconds()
+        t2 = datetime.now()
+        response = get_llm_response(guarded_prompt)
         # Output filtering
-        t3 = datetime.now(); out_ok = output_filter(response); t_out = (datetime.now()-t3).total_seconds()
+        t3 = datetime.now()
+        out_ok = output_filter(response)
         if not out_ok:
             user_msg["status"] = "blocked"
             session["chat_history"].append(user_msg)
             session.modified = True
             flash("Response blocked: Output filter detected sensitive, inappropriate, or unsafe content.")
-            print(f"Blocked response: {response}")
+            safe_print(f"Blocked response: {response}")
             return redirect(url_for("index"))
         # ZKP-based privacy-preserving logging
         interaction_data = {
@@ -648,8 +682,10 @@ def index():
             },
             'zkp_safety_score': zkp_proof.metadata.get("safety_score", 0),
             'zkp_proof_id': zkp_proof.commitment[:16],
+            'zkp_valid': bool(zkp_valid),
             'zkp_log_id': zkp_log_entry["interaction_id"],
             'normalizer_version': NORMALIZER_VERSION,
+            'risk_level': risk_level,
             'snark_policy_id': os.getenv('SNARK_POLICY_ID', 'default'),
             'snark_score': (snark_obj or {}).get('publicSignals', {}).get('score'),
             'timings_ms': {
