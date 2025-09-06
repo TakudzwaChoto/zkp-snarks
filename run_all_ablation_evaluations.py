@@ -19,7 +19,7 @@ def run_all_evaluations():
     scripts = find_evaluation_scripts()
     for script in scripts:
         print(f"Running: {script}")
-        subprocess.run(["python", script], check=True)
+        subprocess.run(["python3", script], check=True)
 
 def collect_metrics():
     # Aggregate all per-method metric files for all datasets
