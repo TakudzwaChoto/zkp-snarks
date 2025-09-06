@@ -1,7 +1,7 @@
 import subprocess
 import os
 
-LINGUA_PATH = "/opt/SecurityLingua/bin/detect"
+LINGUA_PATH = os.environ.get("SECURITYLINGUA_BIN", "/opt/SecurityLingua/bin/detect")
 METHOD_NAME = "SecurityLingua"
 
 def run_securitylingua(input_path, output_path):

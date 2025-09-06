@@ -1,12 +1,12 @@
 import subprocess
 import os
 
-MELON_REPO = "../MELON"
+MELON_REPO = os.environ.get("MELON_REPO", "../MELON")
 METHOD_NAME = "MELON"
 
 def run_melon(input_path, output_path):
     cmd = [
-        "python", f"{MELON_REPO}/detect.py",
+        "python3", f"{MELON_REPO}/detect.py",
         "--input", input_path,
         "--output", output_path
     ]
