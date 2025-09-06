@@ -1,0 +1,5 @@
+accuracy,precision,recall,f1,true_positives,true_negatives,false_positives,false_negatives,Method,Dataset
+0.6753333333333333,1.0,0.3506666666666667,0.5192497532082923,1052.0,3000.0,0.0,1948.0,SecurityLingua,6k
+1.0,1.0,1.0,1.0,3000.0,3000.0,0.0,0.0,MELON,6k
+0.676475,1.0,0.35295,0.5217487712036661,21177.0,60000.0,0.0,38823.0,SecurityLingua,120k
+1.0,1.0,1.0,1.0,60000.0,60000.0,0.0,0.0,MELON,120k

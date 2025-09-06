@@ -9,7 +9,10 @@ RESULTS_DIR = "results_multi"
 
 def find_evaluation_scripts():
     # Finds all evaluation scripts matching evaluate_*.py (excluding this script itself)
-    return [f for f in glob.glob("evaluate_*.py") if "run_all_ablation_evaluations.py" not in f]
+    scripts = [f for f in glob.glob("evaluate_*.py") if "run_all_ablation_evaluations.py" not in f]
+    # Exclude server-dependent evaluator to avoid localhost requirements
+    scripts = [f for f in scripts if f != "evaluate_llm_defense.py"]
+    return scripts
 
 def ensure_dirs():
     for size in DATASETS:
@@ -51,6 +54,9 @@ def collect_metrics():
 def plot_metrics(all_df):
     metrics_to_plot = ["accuracy", "precision", "recall", "f1"]
     plot_df = all_df.melt(id_vars=["Method", "Dataset"], value_vars=metrics_to_plot)
+    # Normalize column names for filtering
+    if "variable" in plot_df.columns:
+        plot_df = plot_df.rename(columns={"variable": "Metric"})
     fig, ax = plt.subplots(figsize=(10,6))
     # Grouped bar plot: metrics by method and dataset
     for idx, metric in enumerate(metrics_to_plot):
