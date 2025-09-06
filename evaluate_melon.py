@@ -47,11 +47,24 @@ def save_metrics(metrics, output_csv, method=METHOD_NAME):
             writer.writerow([k, v])
 
 if __name__ == "__main__":
+    # Prefer existing dataset files in /data
+    size_to_input = {
+        "6k": "data/6kdata.csv",
+        "120k": "data/120kdata.csv",
+    }
     for size in ["6k", "120k"]:
-        input_path = f"data/size_{size}.csv"
+        input_path = size_to_input.get(size, f"data/size_{size}.csv")
         melon_output = f"results_melon/size_{size}_results.csv"
-        metrics_output = f"results_multi/size_{size}/metrics.csv"
+        # Write per-method metrics to avoid conflicts
+        metrics_output = f"results_multi/size_{size}/{METHOD_NAME}_metrics.csv"
         os.makedirs(os.path.dirname(melon_output), exist_ok=True)
+        os.makedirs(os.path.dirname(metrics_output), exist_ok=True)
         run_melon(input_path, melon_output)
         metrics = summarize_metrics(melon_output)
-        save_metrics(metrics, metrics_output)
+        # Normalize to two-column CSV: Metric,Value
+        import csv
+        with open(metrics_output, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(["Metric", "Value"]) 
+            for k, v in metrics.items():
+                writer.writerow([k, v])

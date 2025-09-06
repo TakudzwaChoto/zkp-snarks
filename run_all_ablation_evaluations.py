@@ -22,21 +22,30 @@ def run_all_evaluations():
         subprocess.run(["python", script], check=True)
 
 def collect_metrics():
-    # Aggregate all metrics for all methods and datasets
+    # Aggregate all per-method metric files for all datasets
     all_metrics = []
     for size in DATASETS:
-        for script in find_evaluation_scripts():
-            method = script.replace("evaluate_", "").replace(".py", "")
-            metrics_path = f"{RESULTS_DIR}/size_{size}/metrics.csv"
-            if os.path.exists(metrics_path):
-                df = pd.read_csv(metrics_path, header=None, names=["Metric", "Value"])
-                if "Metric" in df.columns and "Value" in df.columns:
-                    metrics = df.set_index("Metric")["Value"].to_dict()
-                    metrics["Method"] = method
-                    metrics["Dataset"] = size
-                    all_metrics.append(metrics)
+        # collect any *_metrics.csv under size dir
+        size_dir = f"{RESULTS_DIR}/size_{size}"
+        if not os.path.isdir(size_dir):
+            continue
+        for fname in os.listdir(size_dir):
+            if fname.endswith("_metrics.csv"):
+                method = fname.replace("_metrics.csv", "")
+                fpath = os.path.join(size_dir, fname)
+                try:
+                    df = pd.read_csv(fpath)
+                    # Expect columns: Metric,Value
+                    if set(df.columns) >= {"Metric", "Value"}:
+                        metrics = df.set_index("Metric")["Value"].to_dict()
+                        metrics["Method"] = method
+                        metrics["Dataset"] = size
+                        all_metrics.append(metrics)
+                except Exception:
+                    continue
     all_df = pd.DataFrame(all_metrics)
-    all_df.to_csv(f"{RESULTS_DIR}/all_metrics_summary.csv", index=False)
+    if not all_df.empty:
+        all_df.to_csv(f"{RESULTS_DIR}/all_metrics_summary.csv", index=False)
     return all_df
 
 def plot_metrics(all_df):
