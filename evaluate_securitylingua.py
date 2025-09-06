@@ -1,20 +1,28 @@
 import subprocess
 import os
 
-LINGUA_PATH = os.environ.get("SECURITYLINGUA_BIN", "/opt/SecurityLingua/bin/detect")
+LINGUA_PATH = os.environ.get("SECURITYLINGUA_BIN", None)
 METHOD_NAME = "SecurityLingua"
 
 def run_securitylingua(input_path, output_path):
-    cmd = [
-        LINGUA_PATH,
-        "--input", input_path,
-        "--output", output_path
-    ]
+    # Prefer external binary if provided; else use LLMLingua Python adapter
+    if LINGUA_PATH:
+        cmd = [
+            LINGUA_PATH,
+            "--input", input_path,
+            "--output", output_path
+        ]
+    else:
+        cmd = [
+            os.environ.get("SECURITYLINGUA_PYTHON", "python3"),
+            "scripts/run_securitylingua.py",
+            "--input", input_path,
+            "--output", output_path
+        ]
     try:
         subprocess.run(cmd, check=True)
     except Exception as e:
         print(f"Skipping SecurityLingua run (tool missing or failed): {e}")
-        # Create a stub output if missing to allow pipeline continuation
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         with open(output_path, 'w') as f:
             f.write('label,predicted\n')
