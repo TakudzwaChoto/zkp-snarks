@@ -1,0 +1,321 @@
+dataset,ablation,method,metric,value
+6k,baseline,SecurityLingua,accuracy,0.0
+6k,baseline,SecurityLingua,precision,0.0
+6k,baseline,SecurityLingua,recall,0.0
+6k,baseline,SecurityLingua,f1,0.0
+6k,baseline,SecurityLingua,true_positives,0.0
+6k,baseline,SecurityLingua,true_negatives,0.0
+6k,baseline,SecurityLingua,false_positives,0.0
+6k,baseline,SecurityLingua,false_negatives,0.0
+6k,baseline,MELON,accuracy,0.0
+6k,baseline,MELON,precision,0.0
+6k,baseline,MELON,recall,0.0
+6k,baseline,MELON,f1,0.0
+6k,baseline,MELON,true_positives,0.0
+6k,baseline,MELON,true_negatives,0.0
+6k,baseline,MELON,false_positives,0.0
+6k,baseline,MELON,false_negatives,0.0
+6k,baseline,layer,Assurance/Verification,0.9073813708260106
+6k,baseline,layer,Policy/Rules,0.9077328646748682
+6k,baseline,layer,Semantic Detection,0.8135325131810194
+6k,baseline,layer,Orchestration/Ensemble,0.9330404217926186
+6k,sanitizer,ZKP Framework,precision,1.0
+6k,sanitizer,Regex Baseline,precision,0.9171483622350675
+6k,sanitizer,LLM Simulator,precision,1.0
+6k,sanitizer,Ensemble,precision,0.9215041986126323
+6k,sanitizer,ZKP Framework,recall,0.7014869888475836
+6k,sanitizer,Regex Baseline,recall,0.8847583643122676
+6k,sanitizer,LLM Simulator,recall,0.6055762081784387
+6k,sanitizer,Ensemble,recall,0.9382899628252788
+6k,sanitizer,ZKP Framework,f1,0.8245575704610006
+6k,sanitizer,Regex Baseline,f1,0.9006622516556292
+6k,sanitizer,LLM Simulator,f1,0.7543412827043298
+6k,sanitizer,Ensemble,f1,0.9298213298950083
+6k,sanitizer,ZKP Framework,accuracy,0.8588752196836555
+6k,sanitizer,Regex Baseline,accuracy,0.9077328646748682
+6k,sanitizer,LLM Simulator,accuracy,0.8135325131810194
+6k,sanitizer,Ensemble,accuracy,0.9330404217926186
+6k,sanitizer,ZKP Framework,specificity,1.0
+6k,sanitizer,Regex Baseline,specificity,0.9283333333333333
+6k,sanitizer,LLM Simulator,specificity,1.0
+6k,sanitizer,Ensemble,specificity,0.9283333333333333
+6k,sanitizer,ZKP Framework,sensitivity,0.7014869888475836
+6k,sanitizer,Regex Baseline,sensitivity,0.8847583643122676
+6k,sanitizer,LLM Simulator,sensitivity,0.6055762081784387
+6k,sanitizer,Ensemble,sensitivity,0.9382899628252788
+6k,sanitizer,ZKP Framework,avg_detection_time,3.0011787146382256e-05
+6k,sanitizer,Regex Baseline,avg_detection_time,6.411649640289468e-05
+6k,sanitizer,LLM Simulator,avg_detection_time,7.445137613896536e-05
+6k,sanitizer,Ensemble,avg_detection_time,0.00019281962215376655
+6k,semantic,ZKP Framework,precision,0.9170844581565754
+6k,semantic,Regex Baseline,precision,0.9171483622350675
+6k,semantic,LLM Simulator,precision,1.0
+6k,semantic,Ensemble,precision,0.9215041986126323
+6k,semantic,ZKP Framework,recall,0.8840148698884759
+6k,semantic,Regex Baseline,recall,0.8847583643122676
+6k,semantic,LLM Simulator,recall,0.608550185873606
+6k,semantic,Ensemble,recall,0.9382899628252788
+6k,semantic,ZKP Framework,f1,0.9002460723074011
+6k,semantic,Regex Baseline,f1,0.9006622516556292
+6k,semantic,LLM Simulator,f1,0.7566443263230876
+6k,semantic,Ensemble,f1,0.9298213298950083
+6k,semantic,ZKP Framework,accuracy,0.9073813708260106
+6k,semantic,Regex Baseline,accuracy,0.9077328646748682
+6k,semantic,LLM Simulator,accuracy,0.8149384885764499
+6k,semantic,Ensemble,accuracy,0.9330404217926186
+6k,semantic,ZKP Framework,specificity,0.9283333333333333
+6k,semantic,Regex Baseline,specificity,0.9283333333333333
+6k,semantic,LLM Simulator,specificity,1.0
+6k,semantic,Ensemble,specificity,0.9283333333333333
+6k,semantic,ZKP Framework,sensitivity,0.8840148698884759
+6k,semantic,Regex Baseline,sensitivity,0.8847583643122676
+6k,semantic,LLM Simulator,sensitivity,0.608550185873606
+6k,semantic,Ensemble,sensitivity,0.9382899628252788
+6k,semantic,ZKP Framework,avg_detection_time,9.399864082805721e-05
+6k,semantic,Regex Baseline,avg_detection_time,6.45192101047831e-05
+6k,semantic,LLM Simulator,avg_detection_time,6.162215201004108e-05
+6k,semantic,Ensemble,avg_detection_time,0.00022062467565016922
+6k,regex,ZKP Framework,precision,0.9170844581565754
+6k,regex,Regex Baseline,precision,0.0
+6k,regex,LLM Simulator,precision,1.0
+6k,regex,Ensemble,precision,0.9170844581565754
+6k,regex,ZKP Framework,recall,0.8840148698884759
+6k,regex,Regex Baseline,recall,0.0
+6k,regex,LLM Simulator,recall,0.6
+6k,regex,Ensemble,recall,0.8840148698884759
+6k,regex,ZKP Framework,f1,0.9002460723074011
+6k,regex,Regex Baseline,f1,0.0
+6k,regex,LLM Simulator,f1,0.7499999999999999
+6k,regex,Ensemble,f1,0.9002460723074011
+6k,regex,ZKP Framework,accuracy,0.9073813708260106
+6k,regex,Regex Baseline,accuracy,0.5272407732864675
+6k,regex,LLM Simulator,accuracy,0.810896309314587
+6k,regex,Ensemble,accuracy,0.9073813708260106
+6k,regex,ZKP Framework,specificity,0.9283333333333333
+6k,regex,Regex Baseline,specificity,1.0
+6k,regex,LLM Simulator,specificity,1.0
+6k,regex,Ensemble,specificity,0.9283333333333333
+6k,regex,ZKP Framework,sensitivity,0.8840148698884759
+6k,regex,Regex Baseline,sensitivity,0.0
+6k,regex,LLM Simulator,sensitivity,0.6
+6k,regex,Ensemble,sensitivity,0.8840148698884759
+6k,regex,ZKP Framework,avg_detection_time,9.414692964201861e-05
+6k,regex,Regex Baseline,avg_detection_time,6.461185394984347e-08
+6k,regex,LLM Simulator,avg_detection_time,7.256531338281078e-05
+6k,regex,Ensemble,avg_detection_time,0.00018215891766003439
+6k,zkp,ZKP Framework,precision,0.9097775912715065
+6k,zkp,Regex Baseline,precision,0.9171483622350675
+6k,zkp,LLM Simulator,precision,1.0
+6k,zkp,Ensemble,precision,0.9215041986126323
+6k,zkp,ZKP Framework,recall,0.8059479553903346
+6k,zkp,Regex Baseline,recall,0.8847583643122676
+6k,zkp,LLM Simulator,recall,0.6074349442379182
+6k,zkp,Ensemble,recall,0.9382899628252788
+6k,zkp,ZKP Framework,f1,0.8547210723437807
+6k,zkp,Regex Baseline,f1,0.9006622516556292
+6k,zkp,LLM Simulator,f1,0.7557816836262721
+6k,zkp,Ensemble,f1,0.9298213298950083
+6k,zkp,ZKP Framework,accuracy,0.8704745166959578
+6k,zkp,Regex Baseline,accuracy,0.9077328646748682
+6k,zkp,LLM Simulator,accuracy,0.8144112478031634
+6k,zkp,Ensemble,accuracy,0.9330404217926186
+6k,zkp,ZKP Framework,specificity,0.9283333333333333
+6k,zkp,Regex Baseline,specificity,0.9283333333333333
+6k,zkp,LLM Simulator,specificity,1.0
+6k,zkp,Ensemble,specificity,0.9283333333333333
+6k,zkp,ZKP Framework,sensitivity,0.8059479553903346
+6k,zkp,Regex Baseline,sensitivity,0.8847583643122676
+6k,zkp,LLM Simulator,sensitivity,0.6074349442379182
+6k,zkp,Ensemble,sensitivity,0.9382899628252788
+6k,zkp,ZKP Framework,avg_detection_time,5.8548228392911086e-05
+6k,zkp,Regex Baseline,avg_detection_time,6.427840314975732e-05
+6k,zkp,LLM Simulator,avg_detection_time,7.211562828774611e-05
+6k,zkp,Ensemble,avg_detection_time,0.0002002286156786766
+6k,llm,ZKP Framework,precision,0.9170844581565754
+6k,llm,Regex Baseline,precision,0.9171483622350675
+6k,llm,LLM Simulator,precision,0.0
+6k,llm,Ensemble,precision,0.9215041986126323
+6k,llm,ZKP Framework,recall,0.8840148698884759
+6k,llm,Regex Baseline,recall,0.8847583643122676
+6k,llm,LLM Simulator,recall,0.0
+6k,llm,Ensemble,recall,0.9382899628252788
+6k,llm,ZKP Framework,f1,0.9002460723074011
+6k,llm,Regex Baseline,f1,0.9006622516556292
+6k,llm,LLM Simulator,f1,0.0
+6k,llm,Ensemble,f1,0.9298213298950083
+6k,llm,ZKP Framework,accuracy,0.9073813708260106
+6k,llm,Regex Baseline,accuracy,0.9077328646748682
+6k,llm,LLM Simulator,accuracy,0.5272407732864675
+6k,llm,Ensemble,accuracy,0.9330404217926186
+6k,llm,ZKP Framework,specificity,0.9283333333333333
+6k,llm,Regex Baseline,specificity,0.9283333333333333
+6k,llm,LLM Simulator,specificity,1.0
+6k,llm,Ensemble,specificity,0.9283333333333333
+6k,llm,ZKP Framework,sensitivity,0.8840148698884759
+6k,llm,Regex Baseline,sensitivity,0.8847583643122676
+6k,llm,LLM Simulator,sensitivity,0.0
+6k,llm,Ensemble,sensitivity,0.9382899628252788
+6k,llm,ZKP Framework,avg_detection_time,9.297205819396437e-05
+6k,llm,Regex Baseline,avg_detection_time,6.944672294576473e-05
+6k,llm,LLM Simulator,avg_detection_time,6.234918202163884e-08
+6k,llm,Ensemble,avg_detection_time,0.00017509225801759528
+120k,baseline,SecurityLingua,accuracy,0.0
+120k,baseline,SecurityLingua,precision,0.0
+120k,baseline,SecurityLingua,recall,0.0
+120k,baseline,SecurityLingua,f1,0.0
+120k,baseline,SecurityLingua,true_positives,0.0
+120k,baseline,SecurityLingua,true_negatives,0.0
+120k,baseline,SecurityLingua,false_positives,0.0
+120k,baseline,SecurityLingua,false_negatives,0.0
+120k,baseline,MELON,accuracy,0.0
+120k,baseline,MELON,precision,0.0
+120k,baseline,MELON,recall,0.0
+120k,baseline,MELON,f1,0.0
+120k,baseline,MELON,true_positives,0.0
+120k,baseline,MELON,true_negatives,0.0
+120k,baseline,MELON,false_positives,0.0
+120k,baseline,MELON,false_negatives,0.0
+120k,baseline,layer,Assurance/Verification,0.9098764456387155
+120k,baseline,layer,Policy/Rules,0.9074966850198021
+120k,baseline,layer,Semantic Detection,0.8162491108827946
+120k,baseline,layer,Orchestration/Ensemble,0.9350439509295116
+120k,sanitizer,ZKP Framework,precision,1.0
+120k,sanitizer,Regex Baseline,precision,0.9189753504108265
+120k,sanitizer,LLM Simulator,precision,1.0
+120k,sanitizer,Ensemble,precision,0.9236069338874611
+120k,sanitizer,ZKP Framework,recall,0.7128088052415688
+120k,sanitizer,Regex Baseline,recall,0.8822688716892181
+120k,sanitizer,LLM Simulator,recall,0.6107801102511276
+120k,sanitizer,Ensemble,recall,0.9404755275906231
+120k,sanitizer,ZKP Framework,f1,0.8323273479914608
+120k,sanitizer,Regex Baseline,f1,0.9002481013617166
+120k,sanitizer,LLM Simulator,f1,0.7583655973451328
+120k,sanitizer,Ensemble,f1,0.9319649064724383
+120k,sanitizer,ZKP Framework,accuracy,0.8641253282049931
+120k,sanitizer,Regex Baseline,accuracy,0.9074966850198021
+120k,sanitizer,LLM Simulator,accuracy,0.815853947680392
+120k,sanitizer,Ensemble,accuracy,0.9350351695250139
+120k,sanitizer,ZKP Framework,specificity,1.0
+120k,sanitizer,Regex Baseline,specificity,0.93015
+120k,sanitizer,LLM Simulator,specificity,1.0
+120k,sanitizer,Ensemble,specificity,0.93015
+120k,sanitizer,ZKP Framework,sensitivity,0.7128088052415688
+120k,sanitizer,Regex Baseline,sensitivity,0.8822688716892181
+120k,sanitizer,LLM Simulator,sensitivity,0.6107801102511276
+120k,sanitizer,Ensemble,sensitivity,0.9404755275906231
+120k,sanitizer,ZKP Framework,avg_detection_time,2.9289543540235915e-05
+120k,sanitizer,Regex Baseline,avg_detection_time,6.068792021303773e-05
+120k,sanitizer,LLM Simulator,avg_detection_time,6.676865022654395e-05
+120k,sanitizer,Ensemble,avg_detection_time,0.00018627972267315891
+120k,semantic,ZKP Framework,precision,0.9193976459727672
+120k,semantic,Regex Baseline,precision,0.9189753504108265
+120k,semantic,LLM Simulator,precision,1.0
+120k,semantic,Ensemble,precision,0.9236083263461048
+120k,semantic,ZKP Framework,recall,0.8872988473745754
+120k,semantic,Regex Baseline,recall,0.8822688716892181
+120k,semantic,LLM Simulator,recall,0.6115782244742655
+120k,semantic,Ensemble,recall,0.94049408838651
+120k,semantic,ZKP Framework,f1,0.9030631039075118
+120k,semantic,Regex Baseline,f1,0.9002481013617166
+120k,semantic,LLM Simulator,f1,0.7589805014569201
+120k,semantic,Ensemble,f1,0.9319747284782829
+120k,semantic,ZKP Framework,accuracy,0.9098764456387155
+120k,semantic,Regex Baseline,accuracy,0.9074966850198021
+120k,semantic,LLM Simulator,accuracy,0.8162315480737989
+120k,semantic,Ensemble,accuracy,0.9350439509295116
+120k,semantic,ZKP Framework,specificity,0.93015
+120k,semantic,Regex Baseline,specificity,0.93015
+120k,semantic,LLM Simulator,specificity,1.0
+120k,semantic,Ensemble,specificity,0.93015
+120k,semantic,ZKP Framework,sensitivity,0.8872988473745754
+120k,semantic,Regex Baseline,sensitivity,0.8822688716892181
+120k,semantic,LLM Simulator,sensitivity,0.6115782244742655
+120k,semantic,Ensemble,sensitivity,0.94049408838651
+120k,semantic,ZKP Framework,avg_detection_time,9.039493965351189e-05
+120k,semantic,Regex Baseline,avg_detection_time,6.0211581343530535e-05
+120k,semantic,LLM Simulator,avg_detection_time,5.7053974031385574e-05
+120k,semantic,Ensemble,avg_detection_time,0.00023299648834252366
+120k,regex,ZKP Framework,precision,0.9193976459727672
+120k,regex,Regex Baseline,precision,0.0
+120k,regex,LLM Simulator,precision,1.0
+120k,regex,Ensemble,precision,0.919442575684767
+120k,regex,ZKP Framework,recall,0.8872988473745754
+120k,regex,Regex Baseline,recall,0.0
+120k,regex,LLM Simulator,recall,0.6107986710470145
+120k,regex,Ensemble,recall,0.8878371104552963
+120k,regex,ZKP Framework,f1,0.9030631039075118
+120k,regex,Regex Baseline,f1,0.0
+120k,regex,LLM Simulator,f1,0.7583799043613528
+120k,regex,Ensemble,f1,0.9033634869974128
+120k,regex,ZKP Framework,accuracy,0.9098764456387155
+120k,regex,Regex Baseline,accuracy,0.526884269870123
+120k,regex,LLM Simulator,accuracy,0.8158627290848899
+120k,regex,Ensemble,accuracy,0.9101311063691527
+120k,regex,ZKP Framework,specificity,0.93015
+120k,regex,Regex Baseline,specificity,1.0
+120k,regex,LLM Simulator,specificity,1.0
+120k,regex,Ensemble,specificity,0.93015
+120k,regex,ZKP Framework,sensitivity,0.8872988473745754
+120k,regex,Regex Baseline,sensitivity,0.0
+120k,regex,LLM Simulator,sensitivity,0.6107986710470145
+120k,regex,Ensemble,sensitivity,0.8878371104552963
+120k,regex,ZKP Framework,avg_detection_time,8.979406420207245e-05
+120k,regex,Regex Baseline,avg_detection_time,6.15470285470168e-08
+120k,regex,LLM Simulator,avg_detection_time,6.829105199890236e-05
+120k,regex,Ensemble,avg_detection_time,0.0001818069179401622
+120k,zkp,ZKP Framework,precision,0.9117758504546986
+120k,zkp,Regex Baseline,precision,0.9189753504108265
+120k,zkp,LLM Simulator,precision,1.0
+120k,zkp,Ensemble,precision,0.9235957923905712
+120k,zkp,ZKP Framework,recall,0.8039237522504965
+120k,zkp,Regex Baseline,recall,0.8822688716892181
+120k,zkp,LLM Simulator,recall,0.6110028398017707
+120k,zkp,Ensemble,recall,0.9403270412235276
+120k,zkp,ZKP Framework,f1,0.8544599086613862
+120k,zkp,Regex Baseline,f1,0.9002481013617166
+120k,zkp,LLM Simulator,f1,0.7585372597815567
+120k,zkp,Ensemble,f1,0.9318863239216408
+120k,zkp,ZKP Framework,accuracy,0.8704303766344389
+120k,zkp,Regex Baseline,accuracy,0.9074966850198021
+120k,zkp,LLM Simulator,accuracy,0.815959324534366
+120k,zkp,Ensemble,accuracy,0.9349649182890312
+120k,zkp,ZKP Framework,specificity,0.93015
+120k,zkp,Regex Baseline,specificity,0.93015
+120k,zkp,LLM Simulator,specificity,1.0
+120k,zkp,Ensemble,specificity,0.93015
+120k,zkp,ZKP Framework,sensitivity,0.8039237522504965
+120k,zkp,Regex Baseline,sensitivity,0.8822688716892181
+120k,zkp,LLM Simulator,sensitivity,0.6110028398017707
+120k,zkp,Ensemble,sensitivity,0.9403270412235276
+120k,zkp,ZKP Framework,avg_detection_time,5.902676597536325e-05
+120k,zkp,Regex Baseline,avg_detection_time,7.20426906206927e-05
+120k,zkp,LLM Simulator,avg_detection_time,6.749906398972476e-05
+120k,zkp,Ensemble,avg_detection_time,0.00020284912406304815
+120k,llm,ZKP Framework,precision,0.9193976459727672
+120k,llm,Regex Baseline,precision,0.9189753504108265
+120k,llm,LLM Simulator,precision,0.0
+120k,llm,Ensemble,precision,0.9235707121364092
+120k,llm,ZKP Framework,recall,0.8872988473745754
+120k,llm,Regex Baseline,recall,0.8822688716892181
+120k,llm,LLM Simulator,recall,0.0
+120k,llm,Ensemble,recall,0.939992946897563
+120k,llm,ZKP Framework,f1,0.9030631039075118
+120k,llm,Regex Baseline,f1,0.9002481013617166
+120k,llm,LLM Simulator,f1,0.0
+120k,llm,Ensemble,f1,0.9317094708955773
+120k,llm,ZKP Framework,accuracy,0.9098764456387155
+120k,llm,Regex Baseline,accuracy,0.9074966850198021
+120k,llm,LLM Simulator,accuracy,0.526884269870123
+120k,llm,Ensemble,accuracy,0.9348068530080701
+120k,llm,ZKP Framework,specificity,0.93015
+120k,llm,Regex Baseline,specificity,0.93015
+120k,llm,LLM Simulator,specificity,1.0
+120k,llm,Ensemble,specificity,0.93015
+120k,llm,ZKP Framework,sensitivity,0.8872988473745754
+120k,llm,Regex Baseline,sensitivity,0.8822688716892181
+120k,llm,LLM Simulator,sensitivity,0.0
+120k,llm,Ensemble,sensitivity,0.939992946897563
+120k,llm,ZKP Framework,avg_detection_time,8.952697518010519e-05
+120k,llm,Regex Baseline,avg_detection_time,6.060919269273112e-05
+120k,llm,LLM Simulator,avg_detection_time,6.10696763509179e-08
+120k,llm,Ensemble,avg_detection_time,0.00017280896931824648

@@ -91,8 +91,15 @@ class AdvancedEvaluationPipeline:
         # Optional semantic classifier trained on the provided dataset
         self.semantic_model = None
         self.semantic_tuned_threshold: Optional[float] = None
+        # Ablation flags
+        self.disable_sanitizer = os.getenv('DISABLE_SANITIZER', 'false').lower() == 'true'
+        self.disable_semantic = os.getenv('DISABLE_SEMANTIC', 'false').lower() == 'true'
+        self.disable_regex = os.getenv('DISABLE_REGEX', 'false').lower() == 'true'
+        self.disable_zkp = os.getenv('DISABLE_ZKP', 'false').lower() == 'true'
+        self.disable_llm = os.getenv('DISABLE_LLM', 'false').lower() == 'true'
+
         try:
-            enable_semantic = os.getenv('ENABLE_SEMANTIC', 'true').lower() == 'true'
+            enable_semantic = (os.getenv('ENABLE_SEMANTIC', 'true').lower() == 'true') and (not self.disable_semantic)
             if enable_semantic and isinstance(self.test_dataset, list) and len(self.test_dataset) > 0:
                 self.semantic_model = train_semantic_model(self.test_dataset)
                 # Optional auto-tune threshold on the current dataset
@@ -295,15 +302,23 @@ class AdvancedEvaluationPipeline:
         start_time = time.time()
         
         safety_rules = ["no_personal_info", "no_harmful_content", "no_prompt_injection"]
-        zkp_proof = self.zkp_security.generate_prompt_safety_proof(prompt, safety_rules)
-        is_valid = self.zkp_security.verify_prompt_safety_proof(zkp_proof, safety_rules)
-        # Harden ZKP decision with sanitizer/DFA signals (high recall without changing ZKP API)
-        norm_for_sanitizer, triggered, matched_patterns = sanitize_prompt(prompt)
-        if triggered:
-            is_valid = False
+        if not self.disable_zkp:
+            zkp_proof = self.zkp_security.generate_prompt_safety_proof(prompt, safety_rules)
+            is_valid = self.zkp_security.verify_prompt_safety_proof(zkp_proof, safety_rules)
+            confidence = zkp_proof.metadata.get("safety_score", 0)
+        else:
+            zkp_proof = None
+            is_valid = True
+            confidence = 1.0
+        # Harden ZKP decision with sanitizer/DFA signals (unless disabled)
+        if not self.disable_sanitizer:
+            norm_for_sanitizer, triggered, matched_patterns = sanitize_prompt(prompt)
+            if triggered:
+                is_valid = False
+        else:
+            norm_for_sanitizer, triggered, matched_patterns = prompt, False, []
         
         detection_time = time.time() - start_time
-        confidence = zkp_proof.metadata.get("safety_score", 0)
         
         return DetectionResult(
             prompt=prompt,
@@ -314,17 +329,29 @@ class AdvancedEvaluationPipeline:
             method="ZKP Framework",
             metadata={
                 "safety_score": confidence,
-                "proof_id": zkp_proof.commitment[:16],
+                "proof_id": (zkp_proof.commitment[:16] if zkp_proof else None),
                 "zkp_valid": is_valid,
                 "rules_count": len(safety_rules),
                 "sanitizer_triggered": triggered,
-                "matched_patterns": matched_patterns
+                "matched_patterns": matched_patterns,
+                "disabled": bool(self.disable_zkp)
             }
         )
     
     def regex_baseline(self, prompt: str) -> DetectionResult:
         """Simple regex-based detection (normalized + extended patterns)"""
         start_time = time.time()
+        if self.disable_regex:
+            detection_time = time.time() - start_time
+            return DetectionResult(
+                prompt=prompt,
+                true_label="",
+                predicted_label="safe",
+                confidence=0.0,
+                detection_time=detection_time,
+                method="Regex Baseline",
+                metadata={"disabled": True}
+            )
         normalized, triggered, matched = sanitize_prompt(prompt)
         # additional lightweight patterns not in sanitizer (broaden coverage)
         extra_patterns = [
@@ -361,6 +388,17 @@ class AdvancedEvaluationPipeline:
     def llm_simulator(self, prompt: str) -> DetectionResult:
         """LLM-like detector: prefer semantic classifier; fallback to risk aggregation"""
         start_time = time.time()
+        if self.disable_llm:
+            detection_time = time.time() - start_time
+            return DetectionResult(
+                prompt=prompt,
+                true_label="",
+                predicted_label="safe",
+                confidence=0.0,
+                detection_time=detection_time,
+                method="LLM Simulator",
+                metadata={"disabled": True}
+            )
         try:
             if self.semantic_model is not None:
                 prob_adv = float(self.semantic_model.predict_proba([prompt])[0])  # type: ignore
