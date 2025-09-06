@@ -1,4 +1,5 @@
 from flask import Flask, request, render_template, redirect, url_for, flash, session
+from flask_compress import Compress
 from logger import SecureLogger
 from zkp_security import ZKPSecurity
 import os
@@ -102,10 +103,48 @@ app.config.update(
 app.config["WTF_CSRF_SSL_STRICT"] = os.getenv("WTF_CSRF_SSL_STRICT", "false").lower()=="true"
 csrf = CSRFProtect(app)
 
+# Enable HTTP compression and efficient static caching
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = int(os.getenv("STATIC_MAX_AGE", "31536000"))
+app.config["COMPRESS_MIMETYPES"] = [
+    "text/html",
+    "text/css",
+    "application/json",
+    "application/javascript",
+]
+app.config["COMPRESS_LEVEL"] = int(os.getenv("COMPRESS_LEVEL", "6"))
+app.config["COMPRESS_MIN_SIZE"] = int(os.getenv("COMPRESS_MIN_SIZE", "512"))
+app.config["COMPRESS_ALGORITHM"] = os.getenv("COMPRESS_ALGORITHM", "gzip")
+Compress(app)
+
+# Asset version for cache-busting of static resources
+try:
+    static_dir = os.path.join(app.root_path, "static")
+    css_path = os.path.join(static_dir, "common.css")
+    ASSET_VERSION = os.getenv("ASSET_VERSION") or str(int(os.path.getmtime(css_path)))
+except Exception:
+    ASSET_VERSION = os.getenv("ASSET_VERSION", "1")
+
 @app.context_processor
 def inject_csrf_token():
     # Provide CSRF token as a plain string to templates
     return dict(csrf_token=generate_csrf())
+
+@app.context_processor
+def inject_asset_version():
+    return dict(asset_version=ASSET_VERSION)
+
+@app.after_request
+def add_cache_headers(response):
+    try:
+        if request.path.startswith("/static/"):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        else:
+            content_type = response.headers.get("Content-Type", "")
+            if "text/html" in content_type:
+                response.headers["Cache-Control"] = "no-store"
+    except Exception:
+        pass
+    return response
 
 # Set up rate limiting
 limiter = Limiter(
@@ -486,19 +525,38 @@ def clear_chat():
 @app.route("/set_model", methods=["POST"])
 @login_required(role="admin")
 def set_model():
-    model = request.form.get("llm_model")
+    data = None
+    if request.is_json:
+        try:
+            data = request.get_json(silent=True) or {}
+        except Exception:
+            data = {}
+    model = (data or {}).get("model") or request.form.get("llm_model")
+    success = False
     if model in AVAILABLE_MODELS:
         session["llm_model"] = model
-        flash(f"Model switched to {model}")
+        success = True
+        if not request.is_json:
+            flash(f"Model switched to {model}")
     else:
-        flash("Invalid model selection.")
+        if not request.is_json:
+            flash("Invalid model selection.")
+    if request.is_json:
+        return {"success": success, "model": session.get("llm_model")}, (200 if success else 400)
     return redirect(url_for("index"))
 
 @app.route("/set_strict_mode", methods=["POST"])
 @login_required()
 def set_strict_mode():
-    strict = request.form.get("strict_mode") == "on"
+    strict = False
+    if request.is_json:
+        data = request.get_json(silent=True) or {}
+        strict = bool(data.get("strict_mode", False))
+    else:
+        strict = request.form.get("strict_mode") == "on"
     session["strict_mode"] = strict
+    if request.is_json:
+        return {"success": True, "strict_mode": strict}
     flash(f"Strict mode {'enabled' if strict else 'disabled'}.")
     return redirect(url_for("index"))
 

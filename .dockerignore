@@ -1,0 +1,41 @@
+# Python cache and venvs
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# Node artifacts
+node_modules/
+zk/node_modules/
+zk/build/
+
+# Large datasets and experiment outputs
+results_multi/
+archive/
+*.jsonl
+*.csv
+*.tsv
+*.parquet
+*.svg
+logs/
+llm_logs.db
+
+# Local keys and secrets (logger will generate keys if missing)
+keys/
+*.pem
+*.key
+*.pub
+
+# Dev scripts and OS junk
+.DS_Store
+*.bat
+*.ps1
+*.sh
+
+# Git & editor
+.git/
+.gitignore
+.vscode/
+.idea/
