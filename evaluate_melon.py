@@ -5,8 +5,9 @@ MELON_REPO = os.environ.get("MELON_REPO", "../MELON")
 METHOD_NAME = "MELON"
 
 def run_melon(input_path, output_path):
+    interpreter = os.environ.get("MELON_PYTHON", "python3")
     cmd = [
-        "python3", f"{MELON_REPO}/detect.py",
+        interpreter, "scripts/run_melon_detector.py",
         "--input", input_path,
         "--output", output_path
     ]
