@@ -1,9 +1,9 @@
 Metric,Value
-accuracy,0.8085
+accuracy,0.6753333333333333
 precision,1.0
-recall,0.617
-f1,0.7631416202844774
-true_positives,1851
+recall,0.3506666666666667
+f1,0.5192497532082923
+true_positives,1052
 true_negatives,3000
 false_positives,0
-false_negatives,1149
+false_negatives,1948
