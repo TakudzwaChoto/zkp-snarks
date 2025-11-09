@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# OS/IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Flask/Instance data
+instance/
+*.sqlite3
+*.db
+llm_logs.db
+
+# Secrets/Keys
+.env
+.env.*
+keys/
+*.pem
+*.key
+*.der
+
+# Logs
+*.log
+log/
+logs/
+
+# Cache/build
+build/
+dist/
+/node_modules/
+
+# Compiled templates/static artifacts (if any)
+*.min.*
+
+# Local config overrides
+*.local.json
+*.local.yaml
+*.local.yml
