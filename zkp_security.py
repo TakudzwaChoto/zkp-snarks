@@ -6,9 +6,9 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass
 import os
 try:
-    import requests  # type: ignore
+    import requests  
 except Exception:
-    requests = None  # type: ignore
+    requests = None  
 import re
 from security.normalizer import normalize_prompt, NORMALIZER_VERSION
 from security.policy_dfa import PolicyDFA, load_policy_terms

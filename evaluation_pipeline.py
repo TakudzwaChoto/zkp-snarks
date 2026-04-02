@@ -9,11 +9,11 @@ import random
 import time
 import json
 try:
-    import pandas as pd  # type: ignore
+    import pandas as pd  
 except Exception:
-    pd = None  # Fallback path
+    pd = None  
 try:
-    import numpy as np  # type: ignore
+    import numpy as np  
 except Exception:
     np = None
 from typing import Dict, List, Tuple, Any
@@ -27,16 +27,16 @@ except Exception:
     confusion_matrix = roc_curve = auc = precision_recall_curve = None
     classification_report = None
 try:
-    import matplotlib.pyplot as plt  # type: ignore
-    import seaborn as sns  # type: ignore
+    import matplotlib.pyplot as plt  
+    import seaborn as sns 
 except Exception:
     plt = None
     sns = None
 from datetime import datetime
 try:
-    import requests  # type: ignore
+    import requests 
 except Exception:
-    requests = None  # type: ignore
+    requests = None 
 from zkp_security import ZKPSecurity, ZKProof
 import os
 import math
@@ -44,7 +44,7 @@ from security.semantic_classifier import train_semantic_model
 from security.sanitizer import sanitize_prompt
 try:
     from transformers import AutoTokenizer, AutoModelForSequenceClassification  # type: ignore
-    import torch  # type: ignore
+    import torch  
 except Exception:
     AutoTokenizer = None
     AutoModelForSequenceClassification = None
@@ -192,7 +192,7 @@ class AdvancedEvaluationPipeline:
                     if prompt and label:
                         records.append((prompt, label))
                 return records
-            df = pd.read_json(path)  # type: ignore
+            df = pd.read_json(path)  
         elif path.endswith('.csv'):
             # Support two CSV schemas:
             # 1) prompt,label
@@ -250,12 +250,12 @@ class AdvancedEvaluationPipeline:
                                 records.append((atxt, 'adversarial'))
                 return records
             # pandas path
-            df = pd.read_csv(path)  # type: ignore
-            cols = set(df.columns.str.lower())  # type: ignore
+            df = pd.read_csv(path) 
+            cols = set(df.columns.str.lower())  
             if {'prompt', 'label'}.issubset(cols):
                 # normalize column case
-                pcol = [c for c in df.columns if c.lower() == 'prompt'][0]  # type: ignore
-                lcol = [c for c in df.columns if c.lower() == 'label'][0]  # type: ignore
+                pcol = [c for c in df.columns if c.lower() == 'prompt'][0]  
+                lcol = [c for c in df.columns if c.lower() == 'label'][0]  
                 # Map label variants to canonical values
                 lbls = df[lcol].astype(str).str.lower().replace({
                     'malicious': 'adversarial',
@@ -268,12 +268,12 @@ class AdvancedEvaluationPipeline:
                     'clean': 'benign',
                     'non-malicious': 'benign',
                 })  # type: ignore
-                return list(zip(df[pcol].astype(str).tolist(), lbls.astype(str).tolist()))  # type: ignore
+                return list(zip(df[pcol].astype(str).tolist(), lbls.astype(str).tolist())) 
             elif {'benign', 'adversarial'}.issubset(cols):
-                bcol = [c for c in df.columns if c.lower() == 'benign'][0]  # type: ignore
-                acol = [c for c in df.columns if c.lower() == 'adversarial'][0]  # type: ignore
+                bcol = [c for c in df.columns if c.lower() == 'benign'][0]  
+                acol = [c for c in df.columns if c.lower() == 'adversarial'][0] 
                 records: List[Tuple[str, str]] = []
-                for _, row in df.iterrows():  # type: ignore
+                for _, row in df.iterrows():  
                     b = row[bcol]
                     a = row[acol]
                     if isinstance(b, str) and b.strip():

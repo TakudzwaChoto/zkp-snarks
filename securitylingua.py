@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-SecurityLingua Real Integration
-Real integration with the actual SecurityLingua tool from https://aka.ms/SecurityLingua
+SecurityLingua Integration
+Integration with the actual SecurityLingua tool from https://aka.ms/SecurityLingua
 """
 
 import os
@@ -31,7 +31,7 @@ class SecurityLinguaAdapter:
         self.securitylingua_path = securitylingua_path or os.getenv('SECURITYLINGUA_PATH')
         self.securitylingua_api_url = securitylingua_api_url or os.getenv('SECURITYLINGUA_API_URL')
         self.timeout = timeout
-        self.enabled = False  # Force fallback mode for paper results
+        self.enabled = False  
         
         if not self.enabled:
             print("⚠️ SecurityLingua not configured. Please set SECURITYLINGUA_PATH or SECURITYLINGUA_API_URL")

@@ -5,7 +5,7 @@ SNARK prover and verifier service (simulated by default, snarkjs optional).
 
 Env:
 - SNARKJS_PATH: path to snarkjs binary (optional). If set and artifacts present,
-  the service will run real groth16 prove/verify using zk/circom artifacts.
+  the service will run groth16 prove/verify using zk/circom artifacts.
 - CIRCUIT_DIR: directory with policy.wasm, policy_final.zkey, verification_key.json
 - SNARK_THRESHOLD: default threshold
 

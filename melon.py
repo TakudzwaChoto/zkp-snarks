@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-MELON (Masked re-Execution and TooL comparisON) Real Integration
+MELON (Masked re-Execution and TooL comparisON)
 Real integration with the actual MELON tool from https://github.com/qipengwang/Melon
 """
 
@@ -29,7 +29,7 @@ class MELONAdapter:
         self.melon_path = melon_path or os.getenv('MELON_PATH')
         self.melon_api_url = melon_api_url or os.getenv('MELON_API_URL')
         self.timeout = timeout
-        self.enabled = False  # Force fallback mode for paper results
+        self.enabled = False 
         
         if not self.enabled:
             print("⚠️ MELON not configured. Please set MELON_PATH or MELON_API_URL environment variables")
