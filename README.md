@@ -850,4 +850,4 @@ For questions, issues, or contributions:
 
 ---
 
-**⚡ Built for Research Excellence**: This framework is designed for academic research in adversarial prompt detection, achieving publication-quality results with comprehensive ablation study capabilities.
+**⚡ Built for Research Excellence**: This framework is designed for research in adversarial prompt detection.
